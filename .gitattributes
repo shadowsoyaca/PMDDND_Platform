@@ -1,0 +1,8 @@
+# That tells Git to store everything with LF line endings in the repository while still 
+# checking out whatever is native on each machine. It travels with the repo, so it covers 
+# your Windows side, your WSL side, and the server all at once
+* text=auto
+
+# Allows for editing mvnw on Windows, running it on WSL, or moving the file by some other 
+# means other than a clean Git checkout. 
+mvnw text eol=lf
