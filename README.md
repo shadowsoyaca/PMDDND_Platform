@@ -71,7 +71,7 @@ What must be installed before the project will build and run:
 
 1. **Clone the repository**
    ```bash
-   git clone shadowsoyaca/PMDDND_Platform
+   git clone https://github.com/shadowsoyaca/PMDDND_Platform.git
    ```
 2. **Open the project** in VS Code and confirm the JDK is set to **17**.
 3. **Build the project**
