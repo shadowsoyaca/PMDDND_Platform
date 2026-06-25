@@ -58,6 +58,8 @@ Status column as each lands.
 What must be installed before the project will build and run:
 
 - **JDK 17** — the project is locked to Java 17 (Story 4 / Story 5). Not a newer JDK.
+  - Local (dev machine): Eclipse Temurin 17.0.19.
+  - Server: Ubuntu OpenJDK 17.0.19 (headless). Both are OpenJDK 17 builds; the JAR is portable between them.
 - **Git** + **GitHub Desktop** — version control and pushing to the repo.
 - **VS Code** with the Java extensions (Extension Pack for Java; Spring Boot Extension Pack).
 - **WSL (Ubuntu)** — local Linux environment mirroring the server.
@@ -139,7 +141,9 @@ Story 3 (Code Repository) ✅
 
 Story 4 (Minimal Spring Boot app)  ✅ 
 
-Story 5 (Install Java on the server) ⏳ next
+Story 5 (Install Java on the server) ✅ 
+ 
+Story 6 (Install the database on the server) ⏳ next
 
 **Full phase plan:**
 
@@ -159,6 +163,8 @@ Story 5 (Install Java on the server) ⏳ next
 ## Deployment
 
 <!-- Filled in around Story 7 / Story 10, when the deploy process actually exists. -->
-
+ 
+**Server runtime (Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
+ 
 [FILL IN: how the app is built, transferred, and run on the server. Add the
 repeatable deploy steps once Story 10 establishes them.]
