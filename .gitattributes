@@ -6,3 +6,6 @@
 # Allows for editing mvnw on Windows, running it on WSL, or moving the file by some other 
 # means other than a clean Git checkout. 
 mvnw text eol=lf
+
+# forces the Windows script to CRLF
+*.cmd text eol=crlf

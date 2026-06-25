@@ -30,7 +30,7 @@ so the README reflects reality as the project grows.
 | Area | Choice | Status |
 |------|--------|--------|
 | Backend language / framework | Java + Spring Boot | In use (Java **17**) |
-| Build tool | [FILL IN: decided when the Spring Boot project is generated in Story 4 — Maven or Gradle] | Pending |
+| Build tool | Maven | In use |
 | Security / auth | Spring Security | Planned (Phase 2) |
 | Database | PostgreSQL **or** MySQL — *not yet chosen* | Pending (Story 6) |
 | Frontend | React + TypeScript | Planned (Phase 2) |
@@ -76,7 +76,7 @@ What must be installed before the project will build and run:
 2. **Open the project** in VS Code and confirm the JDK is set to **17**.
 3. **Build the project**
    ```
-   [FILL IN: build command — set after the build tool is chosen in Story 4]
+   ./mvnw clean install
    ```
 4. **Configure the database** — [FILL IN: once Story 6 is done.]
 
@@ -86,8 +86,8 @@ What must be installed before the project will build and run:
 
 - **Secrets are kept OUT of version control.** Any config containing secrets
   (e.g. database credentials) is excluded via `.gitignore` and never committed.
-  [FILL IN: name the local config file(s) once they exist.]
-- **Server port:** [FILL IN: once the Spring Boot app is created in Story 4.]
+  src/main/resources/application.yml
+- **Server port:** 8080
 - **Database connection:** [FILL IN: once chosen/installed in Story 6.]
 
 ---
@@ -98,13 +98,13 @@ What must be installed before the project will build and run:
 
 1. Start the app:
    ```
-   [FILL IN: run command]
+   ./mvnw spring-boot:run
    ```
 2. Verify it's up by opening the health-check endpoint in a browser:
    ```
-   [FILL IN: e.g. http://localhost:[port]/health]
+   http://localhost:8080/health
    ```
-   A successful response looks like: [FILL IN: expected status message].
+   A successful response looks like: PMD D&D Platform is up and running!.
 
 ---
 
@@ -115,14 +115,31 @@ The folder/package layout is generated when the Spring Boot project is created
 in Story 4. Fill in a brief map of the key folders once it exists.
 -->
 
-[FILL IN: brief map of key directories/packages after Story 4.]
+src/main/java/com/pmd/dndplatform/
+    DndplatformApplication.java   – application entry point
+    HealthController.java         – serves the /health endpoint
+src/main/resources/
+    application.yml               – app configuration (empty for now)
+pom.xml                           – Maven build + dependencies
+mvnw, mvnw.cmd, .mvn/             – Maven wrapper
 
 ---
 
 ## Roadmap & Status
 
 **Current phase:** Phase 1 — Stand Up the Server & Prove Deployment
-**Progress:** Story 1 (Provision the Server) ✅ · Story 2 (Secure the Server) ✅ · Story 3 (Code Repository) ✅ · Story 4 (Minimal Spring Boot app) ⏳ next
+
+**Progress:** 
+
+Story 1 (Provision the Server) ✅ 
+
+Story 2 (Secure the Server) ✅ 
+
+Story 3 (Code Repository) ✅ 
+
+Story 4 (Minimal Spring Boot app)  ✅ 
+
+Story 5 (Install Java on the server) ⏳ next
 
 **Full phase plan:**
 
