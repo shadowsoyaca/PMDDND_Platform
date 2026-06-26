@@ -144,19 +144,27 @@ mvnw, mvnw.cmd, .mvn/             – Maven wrapper
 
 **Progress:** 
 
-Story 1 (Provision the Server) ✅ 
+Story 1 (Provision the Server) ✅
 
-Story 2 (Secure the Server) ✅ 
+Story 2 (Secure the Server) ✅
 
-Story 3 (Code Repository) ✅ 
+Story 3 (Code Repository) ✅
 
-Story 4 (Minimal Spring Boot app)  ✅ 
+Story 4 (Minimal Spring Boot app) ✅
 
-Story 5 (Install Java on the server) ✅ 
- 
+Story 5 (Install Java on the server) ✅
+
 Story 6 (Install the database on the server) ✅
 
-Story 7 (Deploy and run the app on the server) ⏳ next
+Story 7 (Deploy & run the app on the server) ✅
+
+Story 8 (Make the app reachable from the internet) ⏳ next
+
+Story 9 (Run the app as a managed service) ✅
+
+*Note: Story 9 was done before Story 8 on purpose — stand up the durable
+background service first, then expose it, so the public port is never backed
+by a fragile foreground process.*
 
 **Full phase plan:**
 
@@ -181,5 +189,25 @@ Story 7 (Deploy and run the app on the server) ⏳ next
  
 **Database (Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`. Not yet connected to the app.
 
-[FILL IN: how the app is built, transferred, and run on the server. Add the
-repeatable deploy steps once Story 10 establishes them.]
+**Build & transfer (Story 7):**
+1. Build the executable JAR on the dev machine, from the repo root:
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-0.0.1-SNAPSHOT.jar`
+   (a single runnable "fat" JAR).
+2. Copy it to the server and place it in the app directory:
+   `scp target\dndplatform-0.0.1-SNAPSHOT.jar matthew@<server-ip>:~/`
+   `sudo mv ~/dndplatform-0.0.1-SNAPSHOT.jar /opt/dndplatform/dndplatform.jar`
+   `sudo chown dndapp:dndapp /opt/dndplatform/dndplatform.jar`
+
+**Run as a managed service (Story 9):**
+The app runs under systemd as `dndplatform.service`, executing as the dedicated,
+no-login system account `dndapp`, with the JAR at `/opt/dndplatform/dndplatform.jar`.
+The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
+(`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`).
+- Status:  `sudo systemctl status dndplatform`
+- Logs:    `journalctl -u dndplatform -f`
+- Restart: `sudo systemctl restart dndplatform`
+- Health:  `curl http://localhost:8080/health` → "PMD D&D Platform is up and running!"
+  (Reachable only from the server itself until Story 8 opens port 8080.)
+
+**Repeatable deploy process (Story 10):** to come — will turn the steps above into
+a documented/scripted routine.
