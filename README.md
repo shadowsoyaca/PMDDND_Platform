@@ -129,12 +129,20 @@ in Story 4. Fill in a brief map of the key folders once it exists.
 -->
 
 src/main/java/com/pmd/dndplatform/
-    DndplatformApplication.java   – application entry point
-    HealthController.java         – serves the /health endpoint
+    DndplatformApplication.java   
+    – application entry point
+    HealthController.java         
+    – serves the /health endpoint
+
 src/main/resources/
-    application.yml               – app configuration (empty for now)
-pom.xml                           – Maven build + dependencies
-mvnw, mvnw.cmd, .mvn/             – Maven wrapper
+    application.yml               
+    – app configuration (empty for now)
+
+pom.xml                          
+ – Maven build + dependencies
+
+mvnw, mvnw.cmd, .mvn/             
+ – Maven wrapper
 
 ---
 
@@ -158,9 +166,11 @@ Story 6 (Install the database on the server) ✅
 
 Story 7 (Deploy & run the app on the server) ✅
 
-Story 8 (Make the app reachable from the internet) ⏳ next
+Story 8 (Make the app reachable from the internet) ✅
 
 Story 9 (Run the app as a managed service) ✅
+
+Story 10 (Establish a repeatable deployment process) ⏳ next
 
 *Note: Story 9 was done before Story 8 on purpose — stand up the durable
 background service first, then expose it, so the public port is never backed
@@ -208,6 +218,16 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 - Restart: `sudo systemctl restart dndplatform`
 - Health:  `curl http://localhost:8080/health` → "PMD D&D Platform is up and running!"
   (Reachable only from the server itself until Story 8 opens port 8080.)
+
+**Public access (Story 8):** UFW now allows `8080/tcp` (`sudo ufw allow 8080/tcp`),
+so the app is reachable from the public internet at `http://<droplet-public-IP>:8080/health`.
+Confirmed loading from a separate device on the LAN, from a phone on cellular (a
+different network), and from a friend's device on their own network. Tomcat binds to
+all interfaces (`*:8080`), and the only public layer is UFW — no DigitalOcean Cloud
+Firewall is attached. The `/health` response is a non-sensitive plain string; there is
+no login or database wiring behind the port yet, which is why Spring Security (Phase 2)
+and HTTPS (Story 12) precede any real data going live. Database port `5432` remains
+closed to the internet.
 
 **Repeatable deploy process (Story 10):** to come — will turn the steps above into
 a documented/scripted routine.
