@@ -32,7 +32,7 @@ so the README reflects reality as the project grows.
 | Backend language / framework | Java + Spring Boot | In use (Java **17**) |
 | Build tool | Maven | In use |
 | Security / auth | Spring Security | Planned (Phase 2) |
-| Database | PostgreSQL **or** MySQL — *not yet chosen* | Pending (Story 6) |
+| Database | PostgreSQL | In Use (Story 6) |
 | Frontend | React + TypeScript | Planned (Phase 2) |
 | UI styling / components | Tailwind CSS / MUI / shadcn/ui | Planned |
 | Hover tooltips | Radix UI / Tippy.js | Planned (Phase 4) |
@@ -154,7 +154,9 @@ Story 4 (Minimal Spring Boot app)  ✅
 
 Story 5 (Install Java on the server) ✅ 
  
-Story 6 (Install the database on the server) ⏳ next
+Story 6 (Install the database on the server) ✅
+
+Story 7 (Deploy and run the app on the server) ⏳ next
 
 **Full phase plan:**
 
