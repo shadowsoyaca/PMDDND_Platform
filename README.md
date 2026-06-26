@@ -63,7 +63,7 @@ What must be installed before the project will build and run:
 - **Git** + **GitHub Desktop** — version control and pushing to the repo.
 - **VS Code** with the Java extensions (Extension Pack for Java; Spring Boot Extension Pack).
 - **WSL (Ubuntu)** — local Linux environment mirroring the server.
-- [FILL IN: database — add once chosen and installed in Story 6 (PostgreSQL or MySQL).]
+- **PostgreSQL 16** — runs on the server (installed in Story 6). To browse/manage it from the dev machine, use **DBeaver** over an SSH tunnel (the database port is not exposed to the public internet).
 
 ---
 
@@ -80,17 +80,28 @@ What must be installed before the project will build and run:
    ```
    ./mvnw clean install
    ```
-4. **Configure the database** — [FILL IN: once Story 6 is done.]
+4. **Database** — PostgreSQL 16 is installed and running on the server with an empty
+   `pmd_dnd` database and a dedicated app role (`pmd_app`). The application is **not yet
+   wired to the database** (a later story). 
+   
+   When it is, the DB password is supplied at
+   runtime (see Configuration) — never committed.
 
 ---
 
 ## Configuration
 
 - **Secrets are kept OUT of version control.** Any config containing secrets
-  (e.g. database credentials) is excluded via `.gitignore` and never committed.
-  src/main/resources/application.yml
+- **Runtime secrets (planned):** the database password will be retrieved at runtime
+  from a **secrets manager** (accessed over its API) rather than stored in the repo.
+  The manager's own bootstrap token is treated as a secret too (kept in an env file /
+  environment variable that is git-ignored). The specific secrets-manager product is a
+  decision deferred to the app-wiring story.
 - **Server port:** 8080
-- **Database connection:** [FILL IN: once chosen/installed in Story 6.]
+- **Database connection (server-side):** PostgreSQL 16, database `pmd_dnd`, app role
+  `pmd_app`, listening on `localhost:5432`. Reached from the dev machine through an SSH
+  tunnel; port 5432 is **not** open to the internet. Credentials live in the password
+  manager, not in any file here.
 
 ---
 
@@ -166,5 +177,7 @@ Story 6 (Install the database on the server) ⏳ next
  
 **Server runtime (Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
  
+**Database (Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`. Not yet connected to the app.
+
 [FILL IN: how the app is built, transferred, and run on the server. Add the
 repeatable deploy steps once Story 10 establishes them.]
