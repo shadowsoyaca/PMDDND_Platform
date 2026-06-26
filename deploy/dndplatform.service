@@ -1,0 +1,33 @@
+# dndplatform.service — PMD D&D Platform (Spring Boot)   [Phase 1, Story 9]
+#
+# REFERENCE COPY, reconstructed from the directives recorded in the Story 7 & 9
+# context log. The AUTHORITATIVE copy lives on the server at
+#     /etc/systemd/system/dndplatform.service
+#
+# Before trusting or committing this file, verify it against the live one:
+#     diff <(sudo cat /etc/systemd/system/dndplatform.service) deploy/dndplatform.service
+# If they differ, the LIVE server file wins — copy it over this one, then commit.
+# (Description / After / WantedBy below are the conventional values and were not
+# captured verbatim in the log, so confirm them especially.)
+
+[Unit]
+Description=PMD D&D Platform (Spring Boot)
+After=network.target
+
+[Service]
+User=dndapp
+Group=dndapp
+ExecStart=/usr/bin/java -jar /opt/dndplatform/dndplatform.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/dndplatform
+
+[Install]
+WantedBy=multi-user.target

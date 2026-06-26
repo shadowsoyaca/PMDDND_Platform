@@ -21,8 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HealthController {
 
+    // Deploy marker (Story 10): bump this when validating the deploy process so
+    // you can watch the new build go live through /health. "v1" -> "v2" -> ...
+    private static final String VERSION = "v2";
+
     @GetMapping("/health")
     public String health() {
-        return "PMD D&D Platform is up and running!";
+        return "PMD D&D Platform is up and running! Version: " + VERSION;
     }
 }

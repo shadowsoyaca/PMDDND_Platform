@@ -9,3 +9,8 @@ mvnw text eol=lf
 
 # forces the Windows script to CRLF
 *.cmd text eol=crlf
+
+# Ensures that the committed script keeps Linux line endings, even if the script is edited 
+# on Windows. This is important for scripts that are run in a Linux environment, as CRLF line endings can cause issues.
+*.sh text eol=lf
+*.service text eol=lf

@@ -144,6 +144,12 @@ pom.xml
 mvnw, mvnw.cmd, .mvn/             
  – Maven wrapper
 
+deploy/deploy.sh
+– server-side deploy script (Story 10)
+dndplatform.service
+
+– reference copy of the systemd unit
+
 ---
 
 ## Roadmap & Status
@@ -170,7 +176,9 @@ Story 8 (Make the app reachable from the internet) ✅
 
 Story 9 (Run the app as a managed service) ✅
 
-Story 10 (Establish a repeatable deployment process) ⏳ next
+Story 10 (Establish a repeatable deployment process) ✅
+
+Story 11 (Point a domain at the server) ⏳ next — optional / lower priority
 
 *Note: Story 9 was done before Story 8 on purpose — stand up the durable
 background service first, then expose it, so the public port is never backed
@@ -229,5 +237,28 @@ no login or database wiring behind the port yet, which is why Spring Security (P
 and HTTPS (Story 12) precede any real data going live. Database port `5432` remains
 closed to the internet.
 
-**Repeatable deploy process (Story 10):** to come — will turn the steps above into
-a documented/scripted routine.
+**Repeatable deploy process (Story 10):** the build → transfer → restart
+sequence is now a documented routine backed by a server-side script in `deploy/`.
+
+One-time install of the script on the server (re-run whenever `deploy.sh` changes):
+```
+sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
+```
+
+Each deploy:
+1. Dev machine (Windows PowerShell, from the repo root):
+   `.\mvnw.cmd clean package` → `target\dndplatform-0.0.1-SNAPSHOT.jar`
+2. Upload it:
+   `scp target\dndplatform-0.0.1-SNAPSHOT.jar matthew@<server-ip>:~/`
+3. Server:
+   `sudo dndplatform-deploy`
+   The script installs the uploaded JAR as `/opt/dndplatform/dndplatform.jar`
+   (owned by `dndapp`), restarts `dndplatform.service`, polls
+   `http://localhost:8080/health`, and reports PASS/FAIL. It saves the previous
+   JAR as `dndplatform.jar.bak` and, on failure, prints the one-line manual
+   restore command. (Full versioned rollback is a deferred refinement.)
+4. Confirm live in a browser: `http://<droplet-public-IP>:8080/health`.
+
+The script and a reference copy of the systemd unit are version-controlled under
+`deploy/`. Keep the server's installed script in sync by re-running the install
+command above after editing `deploy/deploy.sh`.
