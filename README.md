@@ -178,7 +178,9 @@ Story 9 (Run the app as a managed service) ✅
 
 Story 10 (Establish a repeatable deployment process) ✅
 
-Story 11 (Point a domain at the server) ⏳ next — optional / lower priority
+Story 11 (Point a domain at the server) ⏸ deferred to project end — avoids paying yearly domain cost while the project is far from done; app runs on its raw IP in the meantime
+
+Story 12 (Enable HTTPS) ⏸ deferred to project end — a self-signed reverse proxy is stood up early in Phase 2 to establish the production topology; the trusted Let's Encrypt certificate + domain land at the end, alongside Story 11
 
 *Note: Story 9 was done before Story 8 on purpose — stand up the durable
 background service first, then expose it, so the public port is never backed
@@ -187,7 +189,7 @@ by a fragile foreground process.*
 **Full phase plan:**
 
 - **Phase 0 — Finish the Blueprint:** Complete the design and a single source-of-truth architecture document.
-- **Phase 1 — Stand Up the Server & Prove Deployment:** Rent the VPS, install Java and the database, deploy an empty Spring Boot app reachable at the server. *(in progress)*
+- **Phase 1 — Stand Up the Server & Prove Deployment:** Rent the VPS, install Java and the database, deploy an empty Spring Boot app reachable at the server. *(core complete - Stories 11-12 deferred to project end)*
 - **Phase 2 — Lock the Door (First Vertical Slice):** Spring Security on every route, hashed passwords, no public signup, login screen, React frontend skeleton, full browser → API → database loop.
 - **Phase 3 — Build the Data Backbone:** Definition/instance schema and the DM CSV-import GUI for bulk data.
 - **Phase 4 — Character Data & Display (No Combat):** The read-only character sheet, hover tooltips, drop-downs.
