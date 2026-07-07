@@ -1,3 +1,11 @@
 spring:
   application:
     name: dndplatform
+
+server:
+  # Trust Caddy's X-Forwarded-* headers so the app sees the real client
+  # IP and the https scheme (required for Secure cookies in Story 2).
+  forward-headers-strategy: framework
+  # Loopback bind: Tomcat listens only on 127.0.0.1, so the app is
+  # physically unreachable except through the reverse proxy.
+  address: 127.0.0.1
