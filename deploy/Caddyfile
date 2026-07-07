@@ -1,0 +1,17 @@
+# Caddyfile — PMD D&D Platform reverse proxy   [Phase 2, Story 1]
+#
+# REFERENCE COPY of the authoritative file on the server at
+#     /etc/caddy/Caddyfile
+# Verified against the live file on July 7, 2026. If they ever
+# diverge, the LIVE server file wins.
+#
+# HTTPS-PENDING: at domain cutover —
+#   1. change the site address below from the raw IP to the real domain
+#   2. delete the "tls internal" line (Caddy then fetches a trusted
+#      Let's Encrypt certificate automatically)
+#   3. open 80/tcp in UFW (ACME challenge + automatic http->https redirect)
+
+https://<droplet-IP> {
+	tls internal
+	reverse_proxy localhost:8080
+}

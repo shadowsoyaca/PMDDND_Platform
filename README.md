@@ -44,6 +44,7 @@ so the README reflects reality as the project grows.
 | IDE | VS Code | In use |
 | Local Linux environment | WSL (Ubuntu) | In use |
 | File transfer to server (optional) | WinSCP | Optional |
+| Reverse Proxy / TLS | Caddy | In use (Phase 2 Story 1) |
 
 <!--
 Note: build tool, database engine, and the React/UI libraries are listed
@@ -136,7 +137,7 @@ src/main/java/com/pmd/dndplatform/
 
 src/main/resources/
     application.yml               
-    – app configuration (empty for now)
+    – holds real config (forwarded headers + loopback bind)
 
 pom.xml                          
  – Maven build + dependencies
@@ -144,9 +145,13 @@ pom.xml
 mvnw, mvnw.cmd, .mvn/             
  – Maven wrapper
 
-deploy/deploy.sh
-– server-side deploy script (Story 10)
-dndplatform.service
+deploy/
+    deploy.sh
+    – server-side deploy script (Phase 1 Story 10)
+    dndplatform.service
+    Caddyfile
+    - reference copy of the reverse proxy config.
+
 
 – reference copy of the systemd unit
 
@@ -154,7 +159,7 @@ dndplatform.service
 
 ## Roadmap & Status
 
-**Current phase:** Phase 1 — Stand Up the Server & Prove Deployment
+**In Progress:** Phase 1 — Stand Up the Server & Prove Deployment
 
 **Progress:** 
 
@@ -186,6 +191,15 @@ Story 12 (Enable HTTPS) ⏸ deferred to project end — a self-signed reverse pr
 background service first, then expose it, so the public port is never backed
 by a fragile foreground process.*
 
+---
+
+**In Progress** Phase 2 - Lock the Door
+
+Story 1 (Reverse proxy, self-signed TLS) ✅
+
+
+---
+
 **Full phase plan:**
 
 - **Phase 0 — Finish the Blueprint:** Complete the design and a single source-of-truth architecture document.
@@ -205,11 +219,11 @@ by a fragile foreground process.*
 
 <!-- Filled in around Story 7 / Story 10, when the deploy process actually exists. -->
  
-**Server runtime (Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
+**Server runtime (Phase 1 Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
  
-**Database (Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`. Not yet connected to the app.
+**Database (Phase 1 Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`. Not yet connected to the app.
 
-**Build & transfer (Story 7):**
+**Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine, from the repo root:
    `.\mvnw.cmd clean package` → produces `target\dndplatform-0.0.1-SNAPSHOT.jar`
    (a single runnable "fat" JAR).
@@ -218,7 +232,7 @@ by a fragile foreground process.*
    `sudo mv ~/dndplatform-0.0.1-SNAPSHOT.jar /opt/dndplatform/dndplatform.jar`
    `sudo chown dndapp:dndapp /opt/dndplatform/dndplatform.jar`
 
-**Run as a managed service (Story 9):**
+**Run as a managed service (Phase 1 Story 9):**
 The app runs under systemd as `dndplatform.service`, executing as the dedicated,
 no-login system account `dndapp`, with the JAR at `/opt/dndplatform/dndplatform.jar`.
 The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
@@ -226,10 +240,10 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 - Status:  `sudo systemctl status dndplatform`
 - Logs:    `journalctl -u dndplatform -f`
 - Restart: `sudo systemctl restart dndplatform`
-- Health:  `curl http://localhost:8080/health` → "PMD D&D Platform is up and running!"
+- Health:  `curl http://<droplet-IP>/health` → "PMD D&D Platform is up and running!"
   (Reachable only from the server itself until Story 8 opens port 8080.)
 
-**Public access (Story 8):** UFW now allows `8080/tcp` (`sudo ufw allow 8080/tcp`),
+**Public access (Phase 1 Story 8):** UFW now allows `8080/tcp` (`sudo ufw allow 8080/tcp`),
 so the app is reachable from the public internet at `http://<droplet-public-IP>:8080/health`.
 Confirmed loading from a separate device on the LAN, from a phone on cellular (a
 different network), and from a friend's device on their own network. Tomcat binds to
@@ -239,7 +253,7 @@ no login or database wiring behind the port yet, which is why Spring Security (P
 and HTTPS (Story 12) precede any real data going live. Database port `5432` remains
 closed to the internet.
 
-**Repeatable deploy process (Story 10):** the build → transfer → restart
+**Repeatable deploy process (Phase 1 Story 10):** the build → transfer → restart
 sequence is now a documented routine backed by a server-side script in `deploy/`.
 
 One-time install of the script on the server (re-run whenever `deploy.sh` changes):
@@ -259,7 +273,7 @@ Each deploy:
    `http://localhost:8080/health`, and reports PASS/FAIL. It saves the previous
    JAR as `dndplatform.jar.bak` and, on failure, prints the one-line manual
    restore command. (Full versioned rollback is a deferred refinement.)
-4. Confirm live in a browser: `http://<droplet-public-IP>:8080/health`.
+4. Confirm live in a browser: `http://<droplet-IP>/health`.
 
 The script and a reference copy of the systemd unit are version-controlled under
 `deploy/`. Keep the server's installed script in sync by re-running the install
