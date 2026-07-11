@@ -4,8 +4,30 @@ spring:
 
 server:
   # Trust Caddy's X-Forwarded-* headers so the app sees the real client
-  # IP and the https scheme (required for Secure cookies in Story 2).
+  # IP and the https scheme (required for Secure cookies below).
   forward-headers-strategy: framework
   # Loopback bind: Tomcat listens only on 127.0.0.1, so the app is
   # physically unreachable except through the reverse proxy.
   address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        # Stops browser JavaScript from reading the login cookie, so a script
+        # slipped onto a page cannot steal the session.
+        http-only: true
+        # Only sends the cookie when the request starts from our own site,
+        # which blocks a common cross-site request trick.
+        same-site: lax
+        # The Secure flag is left unset on purpose. Tomcat adds it by itself
+        # when the request is https. In production the app knows the traffic is
+        # https from the forwarded headers above, so the cookie comes out
+        # Secure. Local http testing skips the flag and still works.
+
+# Owner login for the temporary in-memory account (Story 2 only, replaced by
+# database accounts in Story 3). Both values are read from environment
+# variables so no secret is committed. The app will not start if they are
+# missing, which is on purpose.
+app:
+  owner:
+    username: ${APP_OWNER_USERNAME}
+    password-hash: ${APP_OWNER_PASSWORD_HASH}

@@ -31,7 +31,7 @@ so the README reflects reality as the project grows.
 |------|--------|--------|
 | Backend language / framework | Java + Spring Boot | In use (Java **17**) |
 | Build tool | Maven | In use |
-| Security / auth | Spring Security | Planned (Phase 2) |
+| Security / auth | Spring Security | In use (Phase 2 Story 2) |
 | Database | PostgreSQL | In Use (Story 6) |
 | Frontend | React + TypeScript | Planned (Phase 2) |
 | UI styling / components | Tailwind CSS / MUI / shadcn/ui | Planned |
@@ -98,6 +98,21 @@ What must be installed before the project will build and run:
   The manager's own bootstrap token is treated as a secret too (kept in an env file /
   environment variable that is git-ignored). The specific secrets-manager product is a
   decision deferred to the app-wiring story.
+- **Owner login (Phase 2 Story 2):** while the app uses a single temporary
+  owner account held in memory (replaced by database accounts in Story 3), its
+  username and password are supplied at runtime through two environment
+  variables, so no login secret is committed:
+  - `APP_OWNER_USERNAME` = the owner's login name.
+  - `APP_OWNER_PASSWORD_HASH` = the BCrypt hash of the password. Generate it by
+    running `com.pmd.dndplatform.tools.PasswordHashGenerator` on your own
+    machine, which prints a hash you paste in. The plain password never leaves
+    your machine and is never committed.
+  - Locally, set both in your run config (VS Code `.vscode/launch.json`, which is
+    git-ignored). The app will not start if they are missing, which is on purpose.
+- **Session cookie (Phase 2 Story 2):** the login cookie is set to `http-only`
+  and `same-site: lax`. The `Secure` flag is added automatically when traffic is
+  https (it is in production, via the reverse proxy), and skipped on local http
+  so testing still works.
 - **Server port:** 8080
 - **Database connection (server-side):** PostgreSQL 16, database `pmd_dnd`, app role
   `pmd_app`, listening on `localhost:5432`. Reached from the dev machine through an SSH
@@ -110,15 +125,23 @@ What must be installed before the project will build and run:
 
 <!-- Filled in during Story 4, when the health-check endpoint is built. -->
 
-1. Start the app:
+1. Set the two owner environment variables first (see Configuration):
+   `APP_OWNER_USERNAME` and `APP_OWNER_PASSWORD_HASH`. The app will not start
+   without them.
+2. Start the app:
    ```
    ./mvnw spring-boot:run
    ```
-2. Verify it's up by opening the health-check endpoint in a browser:
+   (In VS Code, press F5 with the app's launch config selected, so the two
+   variables are picked up.)
+3. Verify it's up by opening the health-check endpoint in a browser:
    ```
    http://localhost:8080/health
    ```
    A successful response looks like: PMD D&D Platform is up and running!.
+   This works locally because /health is allowed for requests from the machine
+   itself. From Story 2 on, every other route sends a logged-out visitor to the
+   login page, and outside requests to /health are blocked.
 
 ---
 
@@ -130,30 +153,43 @@ in Story 4. Fill in a brief map of the key folders once it exists.
 -->
 
 src/main/java/com/pmd/dndplatform/
-    DndplatformApplication.java   
-    – application entry point
-    HealthController.java         
-    – serves the /health endpoint
+    DndplatformApplication.java
+    - application entry point
+    HealthController.java
+    - serves the /health endpoint
+    config/
+        SecurityConfig.java
+        - Spring Security setup: BCrypt, the in-memory owner account,
+          default-deny on every route, localhost-only /health, form login
+    tools/
+        PasswordHashGenerator.java
+        - dev helper, not part of the running app. Turns a password into a
+          BCrypt hash you paste into APP_OWNER_PASSWORD_HASH
 
 src/main/resources/
-    application.yml               
-    – holds real config (forwarded headers + loopback bind)
+    application.yaml
+    - real config: forwarded headers, loopback bind, session cookie
+      hardening, and the owner credential env-var references
 
-pom.xml                          
- – Maven build + dependencies
+src/test/java/com/pmd/dndplatform/
+    DndplatformApplicationTests.java
+    - basic context-loads check
+    SecurityConfigTest.java
+    - proves the Story 2 security rules
 
-mvnw, mvnw.cmd, .mvn/             
- – Maven wrapper
+pom.xml
+ - Maven build + dependencies
+
+mvnw, mvnw.cmd, .mvn/
+ - Maven wrapper
 
 deploy/
     deploy.sh
-    – server-side deploy script (Phase 1 Story 10)
+    - server-side deploy script (Phase 1 Story 10)
     dndplatform.service
+    - reference copy of the systemd unit
     Caddyfile
-    - reference copy of the reverse proxy config.
-
-
-– reference copy of the systemd unit
+    - reference copy of the reverse proxy config
 
 ---
 
@@ -196,6 +232,8 @@ by a fragile foreground process.*
 **In Progress** Phase 2 - Lock the Door
 
 Story 1 (Reverse proxy, self-signed TLS) ✅
+
+Story 2 (Secure every route with Spring Security) ✅
 
 
 ---
