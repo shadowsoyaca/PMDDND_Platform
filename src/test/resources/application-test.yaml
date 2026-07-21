@@ -1,0 +1,16 @@
+# Test settings. Loaded only when a test is marked @ActiveProfiles("test").
+#
+# Tests run against a SECOND, local-only database (pmd_dnd_test), never the real
+# one. Same Postgres server, same role, different database. This means:
+#   - tests can freely create and delete accounts without touching real data,
+#   - and Flyway's migrations are exercised on every test run, so a broken
+#     migration is caught by the test suite instead of on the server.
+#
+# The password still comes from DB_PASSWORD. No credential is committed here.
+# The test database exists only on dev machines; it is never created on the server.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pmd_dnd_test
+    username: ${DB_USERNAME:pmd_app}
+    password: ${DB_PASSWORD}

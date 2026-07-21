@@ -32,7 +32,9 @@ so the README reflects reality as the project grows.
 | Backend language / framework | Java + Spring Boot | In use (Java **17**) |
 | Build tool | Maven | In use |
 | Security / auth | Spring Security | In use (Phase 2 Story 2) |
-| Database | PostgreSQL | In Use (Story 6) |
+| Database | PostgreSQL | In Use (Phase 1 Story 6) and Wired to App (Phase 2 Story 3) |
+| Schema migrations | Flyway | In use (Phase 2 Story 3) |
+| ORM / data access | Spring Data JPA (Hibernate) | In use (Phase 2 Story 3) |
 | Frontend | React + TypeScript | Planned (Phase 2) |
 | UI styling / components | Tailwind CSS / MUI / shadcn/ui | Planned |
 | Hover tooltips | Radix UI / Tippy.js | Planned (Phase 4) |
@@ -58,19 +60,19 @@ Status column as each lands.
 
 What must be installed before the project will build and run:
 
-- **JDK 17** — the project is locked to Java 17 (Story 4 / Story 5). Not a newer JDK.
+- **JDK 17** — the project is locked to Java 17 (Phase 1 Story 4 / Phase 1 Story 5). Not a newer JDK.
   - Local (dev machine): Eclipse Temurin 17.0.19.
   - Server: Ubuntu OpenJDK 17.0.19 (headless). Both are OpenJDK 17 builds; the JAR is portable between them.
 - **Git** + **GitHub Desktop** — version control and pushing to the repo.
 - **VS Code** with the Java extensions (Extension Pack for Java; Spring Boot Extension Pack).
 - **WSL (Ubuntu)** — local Linux environment mirroring the server.
-- **PostgreSQL 16** — runs on the server (installed in Story 6). To browse/manage it from the dev machine, use **DBeaver** over an SSH tunnel (the database port is not exposed to the public internet).
+- **PostgreSQL 16** — runs on the server (installed in Phase 1 Story 6) AND on the dev machine (added in Phase 2 Story 3, so the app can be built and tested locally). On the dev machine, create two databases owned by the `pmd_app` role: `pmd_dnd` (real) and `pmd_dnd_test` (used by the test suite, which wipes it constantly). To browse/manage the server database from the dev machine, use **DBeaver** over an SSH tunnel (the database port is not exposed to the public internet).
 
 ---
 
 ## Getting Started / Setup
 
-<!-- The Spring Boot project does not exist yet (Story 4). Fill these in as you build it. -->
+<!-- The Spring Boot project does not exist yet (Phase 1 Story 4). Fill these in as you build it. -->
 
 1. **Clone the repository**
    ```bash
@@ -81,12 +83,10 @@ What must be installed before the project will build and run:
    ```
    ./mvnw clean install
    ```
-4. **Database** — PostgreSQL 16 is installed and running on the server with an empty
-   `pmd_dnd` database and a dedicated app role (`pmd_app`). The application is **not yet
-   wired to the database** (a later story). 
-   
-   When it is, the DB password is supplied at
-   runtime (see Configuration) — never committed.
+4. **Database** — the app is now connected to PostgreSQL 16 (Phase 2 Story 3).
+   - On the dev machine, install PostgreSQL 16 locally and create the `pmd_app` role plus two databases: `pmd_dnd` and `pmd_dnd_test`.
+   - Flyway creates the tables on first startup; you never run the table SQL by hand.
+   - The DB password is supplied at runtime through the `DB_PASSWORD` environment variable (see Configuration) and is never committed.
 
 ---
 
@@ -98,10 +98,16 @@ What must be installed before the project will build and run:
   The manager's own bootstrap token is treated as a secret too (kept in an env file /
   environment variable that is git-ignored). The specific secrets-manager product is a
   decision deferred to the app-wiring story.
-- **Owner login (Phase 2 Story 2):** while the app uses a single temporary
-  owner account held in memory (replaced by database accounts in Story 3), its
-  username and password are supplied at runtime through two environment
-  variables, so no login secret is committed:
+- **Database password (Phase 2 Story 3):** supplied at runtime through the
+  `DB_PASSWORD` environment variable. Locally it is a Windows user environment
+  variable; on the server it comes from a root-only env file read by systemd
+  (see Deployment). Never committed.
+- **Owner account (Phase 2 Story 3):** the owner is now a real row in the
+  database, not an in-memory account. On first startup, if no user has the
+  owner's username, one is created (seeded) from three environment variables.
+  If the row already exists, the variables are ignored — changing them does
+  NOT change your stored password. To reset yourself, delete your row and
+  restart.
   - `APP_OWNER_USERNAME` = the owner's login name.
   - `APP_OWNER_PASSWORD_HASH` = the BCrypt hash of the password. Generate it by
     running `com.pmd.dndplatform.tools.PasswordHashGenerator` on your own
@@ -125,9 +131,9 @@ What must be installed before the project will build and run:
 
 <!-- Filled in during Story 4, when the health-check endpoint is built. -->
 
-1. Set the two owner environment variables first (see Configuration):
-   `APP_OWNER_USERNAME` and `APP_OWNER_PASSWORD_HASH`. The app will not start
-   without them.
+1. Set the environment variables first (see Configuration): `DB_PASSWORD`,
+   `APP_OWNER_USERNAME`, `APP_OWNER_PASSWORD_HASH`, and `APP_OWNER_PERSON_NAME`.
+   The app will not start without them.
 2. Start the app:
    ```
    ./mvnw spring-boot:run
@@ -153,42 +159,108 @@ in Story 4. Fill in a brief map of the key folders once it exists.
 -->
 
 src/main/java/com/pmd/dndplatform/
+
     DndplatformApplication.java
+
     - application entry point
+
     HealthController.java
+
     - serves the /health endpoint
+
     config/
+
         SecurityConfig.java
+
         - Spring Security setup: BCrypt, the in-memory owner account,
           default-deny on every route, localhost-only /health, form login
+
+    user/
+
+        Role.java              - the account roles (OWNER, PLAYER)
+
+        User.java              - one row of the users table
+
+        UserRepository.java    - database access for users
+
+        DatabaseUserDetailsService.java - looks up logins in the database
+
+        OwnerBootstrap.java    - seeds the owner row on first startup
+
+        UserAdminService.java  - the account rules (create/list/update/delete
+         + guards)
+
+        UserAdminController.java - the /api/admin/users endpoints
+
+        dto/
+
+            CreateUserRequest.java  - incoming: new account fields
+
+            UpdateUserRequest.java  - incoming: person-name change
+
+            UserSummary.java        - outgoing: safe account fields (never the hash)
+
     tools/
+
         PasswordHashGenerator.java
+
         - dev helper, not part of the running app. Turns a password into a
           BCrypt hash you paste into APP_OWNER_PASSWORD_HASH
 
 src/main/resources/
+
     application.yaml
+
     - real config: forwarded headers, loopback bind, session cookie
       hardening, and the owner credential env-var references
+   
+    db/migration/
+
+       V1__create_users_table.sql
+
+        - Flyway migration that creates the users table
 
 src/test/java/com/pmd/dndplatform/
+
     DndplatformApplicationTests.java
+
     - basic context-loads check
+
     SecurityConfigTest.java
-    - proves the Story 2 security rules
+
+    - proves the Story 2 security rules (now via database login)
+    
+    UserAdminTest.java
+
+    - proves the Story 3 account rules: create/list/update/delete, role
+      enforcement, hash-not-password storage, and the delete guards
+
+
+src/test/resources
+
+    application-test.yaml
+
+    - points tests at the pmd_dnd_test database
+
 
 pom.xml
+
  - Maven build + dependencies
 
 mvnw, mvnw.cmd, .mvn/
+
  - Maven wrapper
 
 deploy/
+
     deploy.sh
+
     - server-side deploy script (Phase 1 Story 10)
     dndplatform.service
+
     - reference copy of the systemd unit
     Caddyfile
+
     - reference copy of the reverse proxy config
 
 ---
@@ -235,6 +307,8 @@ Story 1 (Reverse proxy, self-signed TLS) ✅
 
 Story 2 (Secure every route with Spring Security) ✅
 
+Story 3 (Owner-created user accounts, database-backed) ✅
+
 
 ---
 
@@ -259,7 +333,15 @@ Story 2 (Secure every route with Spring Security) ✅
  
 **Server runtime (Phase 1 Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
  
-**Database (Phase 1 Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`. Not yet connected to the app.
+**Database (Phase 1 Story 6):** PostgreSQL **16** runs on the server as a systemd service, with an empty `pmd_dnd` database owned by the dedicated non-root role `pmd_app`.
+
+**Runtime secrets on the server (Phase 2 Story 3):** the app reads `DB_PASSWORD`,
+`APP_OWNER_USERNAME`, `APP_OWNER_PASSWORD_HASH`, and `APP_OWNER_PERSON_NAME` from a
+root-only environment file at `/etc/dndplatform/dndplatform.env` (permissions `600`,
+owned by root). The systemd unit loads it with an `EnvironmentFile=` line. systemd
+reads the file as root before handing control to the app, so the values never appear
+in the repo, in the service file, or in a process listing. On first startup Flyway
+creates the users table and the owner account is seeded; no manual SQL is needed.
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine, from the repo root:
@@ -279,7 +361,6 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 - Logs:    `journalctl -u dndplatform -f`
 - Restart: `sudo systemctl restart dndplatform`
 - Health:  `curl http://<droplet-IP>/health` → "PMD D&D Platform is up and running!"
-  (Reachable only from the server itself until Story 8 opens port 8080.)
 
 **Public access (Phase 1 Story 8):** UFW now allows `8080/tcp` (`sudo ufw allow 8080/tcp`),
 so the app is reachable from the public internet at `http://<droplet-public-IP>:8080/health`.
@@ -288,7 +369,7 @@ different network), and from a friend's device on their own network. Tomcat bind
 all interfaces (`*:8080`), and the only public layer is UFW — no DigitalOcean Cloud
 Firewall is attached. The `/health` response is a non-sensitive plain string; there is
 no login or database wiring behind the port yet, which is why Spring Security (Phase 2)
-and HTTPS (Story 12) precede any real data going live. Database port `5432` remains
+and HTTPS (Phase 1 Story 12) precede any real data going live. Database port `5432` remains
 closed to the internet.
 
 **Repeatable deploy process (Phase 1 Story 10):** the build → transfer → restart

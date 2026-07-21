@@ -2,6 +2,33 @@ spring:
   application:
     name: dndplatform
 
+  # ---------------------------------------------------------------------------
+  # Phase 2 Story 3: the database connection.
+  # The URL and username have sensible defaults (the local dev database, and the
+  # same names used on the server). The PASSWORD has no default on purpose: if
+  # DB_PASSWORD is not set, the app refuses to start rather than guessing.
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pmd_dnd}
+    username: ${DB_USERNAME:pmd_app}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # validate = "check that the Java classes match the real tables, and stop
+      # if they do not". Hibernate is NOT allowed to create or alter anything.
+      # Flyway owns the schema; Hibernate only polices it.
+      ddl-auto: validate
+    # Keeps database work inside the service layer instead of leaking into page
+    # rendering. Off is the safer default and avoids surprise queries later.
+    open-in-view: false
+
+  flyway:
+    # Runs the SQL files in db/migration at startup, in order, once each, and
+    # records what it ran in a table it manages itself.
+    enabled: true
+    locations: classpath:db/migration
+
 server:
   # Trust Caddy's X-Forwarded-* headers so the app sees the real client
   # IP and the https scheme (required for Secure cookies below).
@@ -23,11 +50,13 @@ server:
         # https from the forwarded headers above, so the cookie comes out
         # Secure. Local http testing skips the flag and still works.
 
-# Owner login for the temporary in-memory account (Story 2 only, replaced by
-# database accounts in Story 3). Both values are read from environment
-# variables so no secret is committed. The app will not start if they are
-# missing, which is on purpose.
+# Phase 2 Story 3: these three are now the SEED for the owner account, not the account
+# itself. On startup, if no user row has this username, one is created from
+# these values. If the row already exists, these are ignored completely.
+# Changing the hash here does NOT change your stored password.
+# To reset yourself: delete your row from the users table and restart.
 app:
   owner:
     username: ${APP_OWNER_USERNAME}
     password-hash: ${APP_OWNER_PASSWORD_HASH}
+    person-name: ${APP_OWNER_PERSON_NAME}
