@@ -35,9 +35,7 @@ build/
 ### Secrets / local & credential config (Story 6 — never commit credentials) ###
 # The committed application.yml stays secret-free. Real credentials (DB password,
 # secrets-manager bootstrap token) are supplied at runtime and must never be tracked.
-application-local.yml
-application-local.properties
-application-secret.yml
-application-secret.properties
+application-local.*
+application-secret.*
 .env
 *.env\
