@@ -1,13 +1,13 @@
 # PMD D&D Platform
 
-> [FILL IN: one-line description. e.g. "A private web application blending Pokémon Mystery Dungeon mechanics with D&D tabletop play."]
+> [ "A private web application blending Pokémon Mystery Dungeon mechanics with D&D tabletop play."]
 
 <!--
 HOW TO USE THIS TEMPLATE
 - Sections marked [FILL IN] are for you to complete.
 - Delete these comment blocks once you've filled the section in.
 -->
-<!-- NOTE: removed the line saying pre-filled content comes only from the Phase 1 user stories and the requirements doc. That stopped being true several stories ago. -->
+
 
 ---
 
@@ -45,10 +45,6 @@ so the README reflects reality as the project grows.
 | Local Linux environment | WSL (Ubuntu) | In use |
 | Reverse proxy / TLS | Caddy | In use (Phase 2 Story 1) |
 
-<!-- NOTE: dropped the WinSCP row. It was listed as optional in the planning doc and has never been used; scp does the job. -->
-<!-- NOTE: marked the UI library rows as "not chosen yet" so it is clear these are candidates, not decisions. Phase 2 Story 4 forces the first pick. -->
-<!-- NOTE: removed the old comment block claiming the build tool, database engine and UI libraries were named but not installed. Maven and PostgreSQL are both installed and in use. -->
-
 ---
 
 ## Prerequisites
@@ -67,8 +63,6 @@ What must be installed before the project will build and run:
 
 ## Getting Started / Setup
 
-<!-- NOTE: removed the comment saying the Spring Boot project does not exist yet. It has existed since Phase 1 Story 4. -->
-
 1. **Clone the repository**
    ```bash
    git clone https://github.com/shadowsoyaca/PMDDND_Platform.git
@@ -78,7 +72,6 @@ What must be installed before the project will build and run:
    ```
    .\mvnw.cmd clean install
    ```
-   <!-- NOTE: was ./mvnw clean install. On Windows the wrapper is mvnw.cmd, and PowerShell needs the .\ prefix because it will not run a program from the current folder without it. -->
 4. **Database** — the app is connected to PostgreSQL 16 (Phase 2 Story 3).
    - On the dev machine, install PostgreSQL 16 locally and create the `pmd_app` role plus two databases: `pmd_dnd` and `pmd_dnd_test`.
    - Flyway creates the tables on first startup; you never run the table SQL by hand.
@@ -92,8 +85,6 @@ What must be installed before the project will build and run:
   holds a password, a hash, or a token. Every secret reaches the app through an
   environment variable. Config files that would hold local secrets
   (`application-local.*`, `application-secret.*`, `.env`) are git-ignored.
-  <!-- NOTE: the old first bullet was cut off mid-sentence ("Any config containing secrets") and said nothing. Rewritten as a complete rule. -->
-  <!-- NOTE: removed the "Runtime secrets (planned): secrets manager" bullet entirely. That question was settled in Phase 2 Story 3: the answer is environment variables, not a secrets manager. A vault would relocate the secret and add a bootstrap token you still have to store locally, which is not worth it for one server. -->
 - **Database password (Phase 2 Story 3):** supplied at runtime through the
   `DB_PASSWORD` environment variable. Locally it is a Windows user environment
   variable; on the server it comes from a root-only env file read by systemd
@@ -111,12 +102,10 @@ What must be installed before the project will build and run:
     your machine and is never committed.
   - `APP_OWNER_PERSON_NAME` = the real person behind the account. Required,
     because every row in the users table must have one.
-    <!-- NOTE: added. This variable arrived in Phase 2 Story 3 but was never listed here, even though the app will not start without it. -->
   - Locally, set all four (these three plus `DB_PASSWORD`) in your run config
     (VS Code `.vscode/launch.json`, which is git-ignored), or as Windows user
     environment variables. The app will not start if any are missing, which is
     on purpose.
-    <!-- NOTE: was "set both", which counted two variables. There are four. -->
 - **Session cookie (Phase 2 Story 2):** the login cookie is set to `http-only`
   and `same-site: lax`. The `Secure` flag is added automatically when traffic is
   https (it is in production, via the reverse proxy), and skipped on local http
@@ -124,7 +113,6 @@ What must be installed before the project will build and run:
 - **Server port:** 8080. On the server the app binds to `127.0.0.1` only
   (Phase 2 Story 1), so nothing reaches it except through the Caddy reverse
   proxy on 443.
-  <!-- NOTE: added the loopback detail. The bare "Server port: 8080" read as if the port were open on the server, which it has not been since Phase 2 Story 1. -->
 - **Database connection (server-side):** PostgreSQL 16, database `pmd_dnd`, app role
   `pmd_app`, listening on `localhost:5432`. Reached from the dev machine through an SSH
   tunnel; port 5432 is **not** open to the internet. Credentials live in the password
@@ -134,8 +122,6 @@ What must be installed before the project will build and run:
 
 ## Running the Application
 
-<!-- NOTE: removed the comment saying this gets filled in during Story 4 when the health endpoint is built. The endpoint has existed since Phase 1 Story 4. -->
-
 1. Set the environment variables first (see Configuration): `DB_PASSWORD`,
    `APP_OWNER_USERNAME`, `APP_OWNER_PASSWORD_HASH`, and `APP_OWNER_PERSON_NAME`.
    The app will not start without them.
@@ -143,17 +129,14 @@ What must be installed before the project will build and run:
    ```
    .\mvnw.cmd spring-boot:run
    ```
-   <!-- NOTE: was ./mvnw spring-boot:run. Same PowerShell correction as in Getting Started. -->
    (In VS Code, press F5 with the app's launch config selected, so all four
    variables are picked up. Pick the app config in the Run and Debug dropdown,
    not the hash generator.)
-   <!-- NOTE: was "the two variables". There are four. -->
 3. Verify it's up by opening the health-check endpoint in a browser:
    ```
    http://localhost:8080/health
    ```
    A successful response looks like: `PMD D&D Platform is up and running! Version: v2`
-   <!-- NOTE: corrected. The response has carried a version marker since Phase 1 Story 10; the README still showed the older string without it. This whole line changes again at Phase 2 Story 4.5, which replaces the hand-typed marker with a version and build time supplied automatically by the build. -->
    This works locally because `/health` is allowed for requests from the machine
    itself. From Phase 2 Story 2 on, every other route sends a logged-out visitor
    to the login page, and outside requests to `/health` are blocked.
@@ -161,8 +144,6 @@ What must be installed before the project will build and run:
 ---
 
 ## Project Structure
-
-<!-- NOTE: removed the comment saying the layout gets generated in Story 4. It exists and is mapped below. -->
 
 ```
 src/main/java/com/pmd/dndplatform/
@@ -228,16 +209,11 @@ deploy/
     Caddyfile           - reference copy of the reverse proxy config
 ```
 
-<!-- NOTE: SecurityConfig's description said "the in-memory owner account". That account was retired in Phase 2 Story 3 and login now reads from the database. Also added the OWNER-only /api/admin rule, which was missing. -->
-<!-- NOTE: application.yaml's description gained the datasource and Flyway settings added in Phase 2 Story 3. -->
-<!-- NOTE: wrapped the whole structure in a code block. It was loose text with blank lines between every entry, which made it hard to read and hard to keep aligned. -->
-
 ---
 
 ## Roadmap & Status
 
 **Complete:** Phase 1 — Stand Up the Server & Prove Deployment (core)
-<!-- NOTE: was "In Progress". Stories 1 to 10 are all done; 11 and 12 are deferred on purpose, not outstanding. -->
 
 Story 1 (Provision the Server) ✅
 
@@ -287,13 +263,10 @@ Story 5 (Full vertical slice, browser to API to database) ⬜
 
 Stories 6a–6d (Device-bound passkey cluster) ⏸ deferred — needs the domain, see below
 
-<!-- NOTE: the roadmap stopped at Story 3. Added the rest of Phase 2, including the two fix cards (3.5 and 4.5) and the deferred passkey cluster, so the whole phase is visible in one place. -->
 
 ---
 
 ### Deferral note: domain, HTTPS, and passkeys
-
-<!-- NOTE: new section. The deferral used to be explained twice inside the Story 11 and 12 lines above, and the reasoning had since changed. Consolidated here so there is one explanation. -->
 
 Phase 1 Stories 11 and 12 and the Phase 2 Story 6 passkey cluster are deferred
 together, because all three need the same thing: a registered domain name.
@@ -337,8 +310,6 @@ together, because all three need the same thing: a registered domain name.
 
 ## Deployment
 
-<!-- NOTE: removed the comment saying this gets filled in around Story 7 or 10. Both are done and the process is below. -->
-
 **Server runtime (Phase 1 Story 5):** the production droplet runs Ubuntu OpenJDK **17.0.19** (`openjdk-17-jdk-headless`), so it can execute the Spring Boot JAR. Confirmed via `java -version` / `javac -version`.
 
 **Database (Phase 1 Story 6):** PostgreSQL **16** runs on the server as a systemd service, with the `pmd_dnd` database owned by the dedicated non-root role `pmd_app`.
@@ -352,8 +323,6 @@ in the repo, in the service file, or in a process listing. On first startup Flyw
 creates the users table and the owner account is seeded; no manual SQL is needed.
 
 ### Network shape (Phase 2 Story 1)
-
-<!-- NOTE: this section replaces the old "Public access (Phase 1 Story 8)" paragraph, which described a firewall state that stopped being true in Phase 2 Story 1. Reading the old README top to bottom gave you the wrong picture of what is open. -->
 
 - **Caddy** terminates HTTPS on `443` and reverse-proxies to `localhost:8080`.
   The certificate is self-signed, so a browser shows a warning. That is expected
@@ -383,7 +352,6 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 - Logs:    `journalctl -u dndplatform -f`
 - Restart: `sudo systemctl restart dndplatform`
 - Health:  `curl http://localhost:8080/health` — run this **on the server**
-  <!-- NOTE: was `curl http://<droplet-IP>/health`. That is plain http on port 80, which is closed, so the command could not work. It also could not work from off the server, because /health is localhost-only now. -->
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine — Windows PowerShell, from the repo root:
@@ -414,9 +382,7 @@ Each deploy:
    `http://localhost:8080/health`, and reports PASS or FAIL. It saves the previous
    JAR as `dndplatform.jar.bak` and, on failure, prints the one-line manual
    restore command.
-   <!-- NOTE: removed the trailing "(Full versioned rollback is a deferred refinement.)" That refinement now has a card: Phase 2 Story 3.5. -->
 4. Confirm live from the server: `curl http://localhost:8080/health`.
-   <!-- NOTE: was "Confirm live in a browser: http://<droplet-IP>/health". That address is not reachable, for the same two reasons as the health command above. -->
 
 **When to deploy:**
 Deploy after a merge to main rather than letting deploys pile up. The server
@@ -426,11 +392,9 @@ required, not optional, when a story needs something that cannot be proven
 locally — anything seen from a second person's perspective, anything where two
 people need to stay in sync, anything that goes through the reverse proxy, and
 anything that touches the live database rather than the local one.
-<!-- NOTE: new. The rule existed in practice but was written down nowhere. -->
 
 The script and reference copies of the systemd unit and the Caddyfile are
 version-controlled under `deploy/`. Keep the server's installed script in sync by
 re-running the install command above after editing `deploy/deploy.sh`. If a repo
 copy and the live file on the server ever differ, **the live file is correct** —
 sync the repo copy to match it, not the other way round.
-<!-- NOTE: added the Caddyfile to the list, and added the live-wins rule. That convention was established in Phase 1 Story 10 and confirmed in Phase 2 Story 1 but never written here. -->
