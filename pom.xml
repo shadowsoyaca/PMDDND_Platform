@@ -10,7 +10,18 @@
 	</parent>
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
+	     identified nothing. The number is now phase.story.child, so this build is
+	     Phase 2 Story 3.5. Bump it on each story branch.
+
+	     This is what names the built file: target/dndplatform-2.3.5.jar. The
+	     deploy script reads the version back out of that filename, so this is the
+	     single place the version is set.
+
+	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
+	     you", which is the wrong thing to say about a build you deploy and might
+	     later roll back to. -->
+	<version>2.3.5</version>
 	<name/>
 	<description/>
 	<url/>
@@ -54,7 +65,7 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
-		<!-- Story 3: Flyway owns the database schema. Two pieces are needed:
+		<!-- Phase 2 Story 3: Flyway owns the database schema. Two pieces are needed:
 		     the core engine, and the PostgreSQL support module. -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
@@ -79,7 +90,7 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Story 2: lets tests simulate logged-in and logged-out requests. -->
+		<!-- Phase 2 Story 3: lets tests simulate logged-in and logged-out requests. -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>

@@ -204,9 +204,12 @@ pom.xml               - Maven build and dependencies
 mvnw, mvnw.cmd, .mvn/ - Maven wrapper
 
 deploy/
-    deploy.sh           - server-side deploy script (Phase 1 Story 10)
+    deploy.sh           - server-side deploy script (Phase 2 Story 3.5: versioned builds + symlink)
     dndplatform.service - reference copy of the systemd unit
     Caddyfile           - reference copy of the reverse proxy config
+
+docs/
+    DEPLOY.md
 ```
 
 ---
@@ -253,9 +256,9 @@ Story 2 (Secure every route with Spring Security) ✅
 
 Story 3 (Owner-created user accounts, database-backed) ✅
 
-Story 3.5 (Fast rollback with versioned JARs) ⬜ next
+Story 3.5 (Fast rollback with versioned JARs) ✅
 
-Story 4 (Login screen as the only public surface) ⬜
+Story 4 (Login screen as the only public surface) ⬜ next
 
 Story 4.5 (Health endpoint reports the real build) ⬜
 
@@ -344,7 +347,7 @@ creates the users table and the owner account is seeded; no manual SQL is needed
 
 **Run as a managed service (Phase 1 Story 9):**
 The app runs under systemd as `dndplatform.service`, executing as the dedicated,
-no-login system account `dndapp`, with the JAR at `/opt/dndplatform/dndplatform.jar`.
+no-login system account `dndapp`. The unit starts `/opt/dndplatform/current.jar`, a symlink pointing at the live build in `/opt/dndplatform/releases/` (Phase 2 Story 3.5).
 The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 (`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`).
 
@@ -354,13 +357,12 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 - Health:  `curl http://localhost:8080/health` — run this **on the server**
 
 **Build & transfer (Phase 1 Story 7):**
-1. Build the executable JAR on the dev machine — Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-0.0.1-SNAPSHOT.jar`
-   (a single runnable "fat" JAR).
-2. Copy it to the server and place it in the app directory:
-   `scp target\dndplatform-0.0.1-SNAPSHOT.jar matthew@<server-ip>:~/`
-   `sudo mv ~/dndplatform-0.0.1-SNAPSHOT.jar /opt/dndplatform/dndplatform.jar`
-   `sudo chown dndapp:dndapp /opt/dndplatform/dndplatform.jar`
+1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.3.5.jar'
+   (a single runnable "fat" JAR). The version comes from '<version>' in 'pom.xml' and is bumped on each story branch: phase.story.child, so '2.3.5' is Phase 2 Story 3.5.
+2. Copy it to the server with `scp` and deploy it with the script. The manual
+   `mv` into `/opt/dndplatform` that this step used to describe is gone — the
+   deploy script now places the build. See **Repeatable deploy process** below
 
 **Repeatable deploy process (Phase 1 Story 10):** the build → transfer → restart
 sequence is a documented routine backed by a server-side script in `deploy/`.
@@ -371,18 +373,30 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 ```
 
 Each deploy:
+
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-0.0.1-SNAPSHOT.jar`
-2. Upload it:
-   `scp target\dndplatform-0.0.1-SNAPSHOT.jar matthew@<server-ip>:~/`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.3.5.jar`
+2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
+   `scp target/dndplatform-2.3.5.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
-   The script installs the uploaded JAR as `/opt/dndplatform/dndplatform.jar`
-   (owned by `dndapp`), restarts `dndplatform.service`, polls
-   `http://localhost:8080/health`, and reports PASS or FAIL. It saves the previous
-   JAR as `dndplatform.jar.bak` and, on failure, prints the one-line manual
-   restore command.
+   The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
+   name carrying its version and the time of install (for example
+   `dndplatform-2.3.5-20260724-034213.jar`), repoints the `current.jar` symlink
+   at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
+   and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
+   On failure it deletes nothing and prints the exact one-line rollback command
+   naming the previous build.
 4. Confirm live from the server: `curl http://localhost:8080/health`.
+
+**Rolling back.** Move the symlink and restart. The failure message prints this
+line for you with the right build filled in:
+
+```bash
+sudo ln -sfn /opt/dndplatform/releases/<build>.jar /opt/dndplatform/current.jar && sudo chown -h dndapp:dndapp /opt/dndplatform/current.jar && sudo systemctl restart dndplatform
+```
+Rollback is deliberately manual. A failed health check is usually caused by
+something other than the JAR, and swapping the build back would change the state of the machine before you start reading logs. Flyway migrations only run forward: rolling the build back does **not** roll the database back, so a build older than the last migration may refuse to start. Builds older than the last migration are not usable anyway resulting in only 5 builds being kept.
 
 **When to deploy:**
 Deploy after a merge to main rather than letting deploys pile up. The server

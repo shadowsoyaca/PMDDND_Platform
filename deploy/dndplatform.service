@@ -1,9 +1,8 @@
-# dndplatform.service — PMD D&D Platform (Spring Boot)   [Phase 1, Story 9]
+# dndplatform.service — PMD D&D Platform (Spring Boot)
 #
-# REFERENCE COPY of the authoritative file on the server at
-#     /etc/systemd/system/dndplatform.service
-# Verified line-for-line against the live unit on July 6, 2026.
-# If they ever diverge again, the LIVE server file wins.
+# This file exists in two places: live at /etc/systemd/system/dndplatform.service
+# on the server, and as a copy in the repository at deploy/dndplatform.service.
+# They are kept identical. If they ever differ, the LIVE server file wins.
 [Unit]
 Description=PMD D&D Platform (Spring Boot)
 After=network.target
@@ -11,7 +10,15 @@ After=network.target
 User=dndapp
 Group=dndapp
 WorkingDirectory=/opt/dndplatform
-ExecStart=/usr/bin/java -jar /opt/dndplatform/dndplatform.jar
+# The four values the app cannot start without: the database password, and the
+# three owner seed values. The file is root only. systemd reads it as root and
+# hands the values to the process, so the dndapp account never needs access to
+# the file itself.
+EnvironmentFile=/etc/dndplatform/dndplatform.env
+# current.jar is a symlink pointing at the live build inside
+# /opt/dndplatform/releases. Deploying moves the symlink, so this line never has
+# to change again. Rolling back is moving it back.
+ExecStart=/usr/bin/java -jar /opt/dndplatform/current.jar
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5
