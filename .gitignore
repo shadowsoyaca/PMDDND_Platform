@@ -39,3 +39,7 @@ application-local.*
 application-secret.*
 .env
 *.env\
+
+### Frontend  ###
+node_modules/
+frontend/dist/
