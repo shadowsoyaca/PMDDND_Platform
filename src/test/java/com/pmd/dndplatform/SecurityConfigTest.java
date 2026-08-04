@@ -51,9 +51,14 @@ class SecurityConfigTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    /*
+     * NOTE - Phase 2 Story 4: this used to ask for "/", which was protected
+     * until Story 4 made it public so the browser can load the React app. It now
+     * asks for a route that is still behind the default-deny rule.
+     */
     @Test
     void protectedRoute_whenLoggedOut_isSentToLogin() throws Exception {
-        mockMvc.perform(get("/"))
+        mockMvc.perform(get("/roster"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("**/login"));
     }
