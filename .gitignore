@@ -40,6 +40,7 @@ application-secret.*
 .env
 *.env\
 
-### Frontend  ###
+### Frontend (Phase 2 Story 4) ###
 node_modules/
 frontend/dist/
+frontend/node/
