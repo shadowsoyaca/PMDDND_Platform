@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /*
  * Phase 2 Story 2 built this. Phase 2 Story 3 changes two things:
@@ -103,7 +104,7 @@ public class SecurityConfig {
                  * protect them. Default-deny is worth the occasional new line.
                  */
                 .requestMatchers("/", "/index.html", "/assets/**",
-                                 "/favicon.svg", "/vite.svg").permitAll()
+                                 "/favicon.svg").permitAll()
 
                 // The login page is the only thing a logged-out visitor can reach.
                 .requestMatchers("/login").permitAll()
@@ -183,6 +184,7 @@ public class SecurityConfig {
              */
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
             );
 
         return http.build();
