@@ -1,27 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- ==========================================================================
+     PMD D&D Platform - Maven build file
+
+     Maven reads this file to know three things: what the project is called,
+     what libraries it needs, and what steps to run when building it.
+
+     Running ".\mvnw.cmd clean package" from the repo root produces a single
+     runnable "fat" JAR in target/, which is the only file that gets deployed
+     to the server.
+     ========================================================================== -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+	<!-- The POM format version. Always 4.0.0. Not the project's version. -->
 	<modelVersion>4.0.0</modelVersion>
+
+	<!-- ======================================================================
+	     PARENT
+
+	     Inheriting from spring-boot-starter-parent means Spring Boot picks the
+	     version number for every library below. That is why most <dependency>
+	     blocks in this file have no <version> tag: the parent already chose one
+	     that is known to work with Spring Boot 3.5.15. It also sets sensible
+	     defaults for the compiler and packaging plugins.
+
+	     Changing 3.5.15 upgrades Spring Boot and everything it manages at once.
+	     ====================================================================== -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.5.15</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
+
+	<!-- ======================================================================
+	     PROJECT IDENTITY
+
+	     groupId + artifactId + version uniquely name this project. Together they
+	     also decide the built filename: dndplatform-2.4.0.jar
+	     ====================================================================== -->
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
+
 	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
 	     identified nothing. The number is now phase.story.child, so this build is
-	     Phase 2 Story 3.5. Bump it on each story branch.
+	     Phase 2 Story 4. Bump it on each story branch.
 
-	     This is what names the built file: target/dndplatform-2.3.5.jar. The
+	     This is what names the built file: target/dndplatform-2.4.0.jar. The
 	     deploy script reads the version back out of that filename, so this is the
 	     single place the version is set.
 
 	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
 	     you", which is the wrong thing to say about a build you deploy and might
 	     later roll back to. -->
-	<version>2.3.5</version>
+	<version>2.4.0</version>
+
+	<!-- ======================================================================
+	     PROJECT METADATA
+
+	     Empty placeholders left by Spring Initializr. They matter only when
+	     publishing a library to a public repository, which this project never
+	     does. Harmless to leave blank.
+	     ====================================================================== -->
 	<name/>
 	<description/>
 	<url/>
@@ -37,10 +77,34 @@
 		<tag/>
 		<url/>
 	</scm>
+
+	<!-- ======================================================================
+	     PROPERTIES
+
+	     Reusable values. java.version is read by the parent's compiler settings,
+	     which is what locks this project to Java 17 rather than whatever JDK
+	     happens to be installed.
+	     ====================================================================== -->
 	<properties>
 		<java.version>17</java.version>
 	</properties>
+
+	<!-- ======================================================================
+	     DEPENDENCIES
+
+	     The libraries the code needs. A "starter" is a bundle: asking for one
+	     pulls in a whole working set rather than a dozen individual libraries.
+
+	     <scope> controls when a dependency is available:
+	       (none)   - compiling, testing, and running
+	       runtime  - testing and running only, never referenced in code
+	       test     - tests only, never shipped in the JAR
+	     ====================================================================== -->
 	<dependencies>
+
+		<!-- The web layer: embedded Tomcat, Spring MVC, JSON handling. This is
+		     what makes the app an HTTP server listening on port 8080, and what
+		     serves the React files out of the classpath's static/ folder. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
@@ -84,6 +148,8 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- The test toolkit: JUnit, AssertJ, Mockito, MockMvc. Test scope, so
+		     none of it ends up in the deployed JAR. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -98,12 +164,123 @@
 		</dependency>
 	</dependencies>
 
+	<!-- ======================================================================
+	     BUILD
+
+	     Plugins are the steps Maven runs. Each <execution> binds a plugin goal
+	     to a phase of the build lifecycle. Phases run in a fixed order; the ones
+	     that matter here are:
+
+	       generate-resources  - early, before Java is compiled
+	       compile             - Java source becomes .class files in target/classes/
+	       prepare-package     - last chance to add files before the JAR is sealed
+	       package             - target/classes/ is zipped into the JAR
+
+	     Nothing in target/ is ever edited or committed. It is rebuilt from
+	     scratch by every "clean package".
+	     ====================================================================== -->
 	<build>
 		<plugins>
+
+			<!-- Takes the plain JAR that Maven produces and repackages it into an
+			     executable "fat" JAR with every dependency bundled inside, plus a
+			     launcher so "java -jar" works. This is what makes a single file
+			     deployable to the server with no libraries installed alongside it. -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!-- ==============================================================
+			     Phase 2 Story 4: builds the React frontend as part of the Maven
+			     build, so "clean package" produces a JAR containing both halves
+			     of the application.
+
+			     Node and npm versions are pinned here on purpose. The plugin
+			     downloads its own copy into frontend/node/ rather than using
+			     whatever is on PATH, so the Windows side, the WSL side, and any
+			     future machine all build with the same toolchain. These two
+			     numbers match the versions currently installed locally.
+
+			     The three executions run in the order written, all during
+			     generate-resources:
+			       1. install-node-and-npm - downloads the pinned Node into the project
+			       2. npm ci               - installs dependencies exactly as pinned
+			                                 in package-lock.json (unlike "npm install",
+			                                 ci never silently updates the lock file)
+			       3. npm run build        - Vite compiles TypeScript and bundles
+			                                 everything into frontend/dist/
+
+			     frontend/node/ and frontend/dist/ are both generated and both
+			     git-ignored.
+			     ============================================================== -->
+			<plugin>
+				<groupId>com.github.eirslett</groupId>
+				<artifactId>frontend-maven-plugin</artifactId>
+				<version>1.15.1</version>
+				<configuration>
+					<workingDirectory>frontend</workingDirectory>
+					<nodeVersion>v24.12.0</nodeVersion>
+					<npmVersion>11.6.2</npmVersion>
+				</configuration>
+				<executions>
+					<execution>
+						<id>install-node-and-npm</id>
+						<goals><goal>install-node-and-npm</goal></goals>
+					</execution>
+					<execution>
+						<id>npm-ci</id>
+						<goals><goal>npm</goal></goals>
+						<configuration><arguments>ci</arguments></configuration>
+					</execution>
+					<execution>
+						<id>npm-build</id>
+						<goals><goal>npm</goal></goals>
+						<configuration><arguments>run build</arguments></configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- ==============================================================
+			     Phase 2 Story 4: copies the finished frontend build into the
+			     JAR's static folder.
+
+			     Vite writes to frontend/dist/. Spring Boot serves web files from
+			     the classpath at static/, which is target/classes/static/ during
+			     a build. This step bridges the two.
+
+			     Runs at prepare-package, so the files land in target/classes/
+			     after Java compilation but before the JAR is zipped.
+
+			     ${project.build.outputDirectory} is Maven's own name for
+			     target/classes, so this keeps working if that path ever changes.
+
+			     filtering is switched off explicitly. Filtering means "search the
+			     copied files for ${...} placeholders and substitute values",
+			     which would corrupt binary files such as the PNG backdrop. Off is
+			     the default, but stating it makes the intent obvious.
+			     ============================================================== -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-frontend-build</id>
+						<phase>prepare-package</phase>
+						<goals><goal>copy-resources</goal></goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+							<resources>
+								<resource>
+									<directory>frontend/dist</directory>
+									<filtering>false</filtering>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
 

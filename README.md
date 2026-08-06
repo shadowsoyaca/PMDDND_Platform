@@ -1,21 +1,28 @@
 # PMD D&D Platform
 
-> [ "A private web application blending Pokémon Mystery Dungeon mechanics with D&D tabletop play."]
-
-<!--
-HOW TO USE THIS TEMPLATE
-- Sections marked [FILL IN] are for you to complete.
-- Delete these comment blocks once you've filled the section in.
--->
-
+> A private web application blending Pokémon Mystery Dungeon mechanics with D&D tabletop play.
 
 ---
 
 ## Overview
 
-[FILL IN: a short paragraph on what the platform is and who it's for.
-Cover the core idea — a private, session-based game tool for you and your
-players — and what makes it different. Keep it to 3–5 sentences.]
+The PMD D&D Platform is a private, invite-only web application for running a
+tabletop role-playing game built on Pokémon Mystery Dungeon. It exists to carry
+the parts of that system a person should not have to track by hand: the
+character sheets, the calculations, the status effects, and the state of a
+session as it unfolds.
+
+It is deliberately not a public service. There is no sign-up page, and accounts
+are created by the owner. The intended audience is one small group of friends,
+which is why it favours doing a few things thoroughly over doing many things
+adequately.
+
+The rules it implements are an original system rather than an adaptation of an
+existing one, designed alongside the software. What separates it from a generic
+virtual tabletop is that it knows the rules: the platform performs the maths and
+enforces the mechanics rather than serving as a shared surface to write on.
+
+---
 
 ---
 
@@ -33,9 +40,10 @@ so the README reflects reality as the project grows.
 | Database | PostgreSQL | In use (Phase 1 Story 6), wired to the app (Phase 2 Story 3) |
 | Schema migrations | Flyway | In use (Phase 2 Story 3) |
 | ORM / data access | Spring Data JPA (Hibernate) | In use (Phase 2 Story 3) |
-| Frontend | React + TypeScript | Planned (Phase 2 Story 4) |
-| UI styling / components | Tailwind CSS / MUI / shadcn/ui | Planned — not chosen yet |
-| Hover tooltips | Radix UI / Tippy.js | Planned (Phase 4) — not chosen yet |
+| Frontend | React + TypeScript | In use (Phase 2 Story 4) |
+| Frontend build | Vite + Node.js | In use (Phase 2 Story 4) — run by Maven during `package`, so one command builds both halves |
+| UI styling / components | Tailwind CSS + shadcn/ui | In use (Phase 2 Story 4) — chosen over MUI; theming deferred to Phase 2 Story 10 and Phase 4 Story 1 |
+| Hover tooltips | Radix UI | In use (Phase 2 Story 4) — arrives with shadcn/ui, which settles the earlier Radix / Tippy.js question |
 | Animations | Motion (Framer Motion) | Planned (Phase 9) |
 | Audio | Web Audio API | Planned (Phase 9) |
 | Real-time | Spring WebSocket + browser WebSocket | Planned (Phase 6) |
@@ -54,6 +62,7 @@ What must be installed before the project will build and run:
 - **JDK 17** — the project is locked to Java 17 (Phase 1 Story 4 / Phase 1 Story 5). Not a newer JDK.
   - Local (dev machine): Eclipse Temurin 17.0.19.
   - Server: Ubuntu OpenJDK 17.0.19 (headless). Both are OpenJDK 17 builds; the JAR is portable between them.
+- **Node.js 24** and **npm 11** — needed to build the React frontend (Phase 2 Story 4). Maven downloads its own pinned copy into `frontend/node/` during a build, so a plain `mvnw` build works without these installed. Install them anyway if you intend to work on the frontend directly, since running `npm run dev` and `npm run build` by hand is far quicker than a full Maven cycle.
 - **Git** + **GitHub Desktop** — version control and pushing to the repo.
 - **VS Code** with the Java extensions (Extension Pack for Java; Spring Boot Extension Pack).
 - **WSL (Ubuntu)** — local Linux environment mirroring the server.
@@ -72,6 +81,14 @@ What must be installed before the project will build and run:
    ```
    .\mvnw.cmd clean install
    ```
+   This builds both halves. Maven installs a pinned Node into `frontend/node/`,
+   runs the frontend build, and copies the result into the JAR. The first run is
+   slower because Node is downloaded; later runs add roughly ten to thirty
+   seconds.
+
+   When working on the frontend alone, build it directly instead — from
+   `frontend/`, `npm run build` finishes in seconds and reports the same
+   TypeScript errors. Maven is only needed when the JAR itself is wanted.
 4. **Database** — the app is connected to PostgreSQL 16 (Phase 2 Story 3).
    - On the dev machine, install PostgreSQL 16 locally and create the `pmd_app` role plus two databases: `pmd_dnd` and `pmd_dnd_test`.
    - Flyway creates the tables on first startup; you never run the table SQL by hand.
@@ -139,7 +156,21 @@ What must be installed before the project will build and run:
    A successful response looks like: `PMD D&D Platform is up and running! Version: v2`
    This works locally because `/health` is allowed for requests from the machine
    itself. From Phase 2 Story 2 on, every other route sends a logged-out visitor
-   to the login page, and outside requests to `/health` are blocked.
+   to the login page, and outside requests to `/health` are blocked. The version
+   in that message is written into the code by hand and does not follow
+   `pom.xml`; Phase 2 Story 4.5 makes it report the real build.
+4. Open the application itself at:
+   ```
+   http://localhost:8080/
+   ```
+   A logged-out visitor lands on the login screen whatever address they ask for
+   (Phase 2 Story 4). Signing in leads to a placeholder screen showing the
+   account and a sign-out button, which stands in until there is somewhere real
+   to land.
+
+   Test in a private browsing window. A session cookie left over from an earlier
+   run will otherwise make a logged-out visit look like a signed-in one, which is
+   a confusing thing to debug.
 
 ---
 
@@ -156,7 +187,12 @@ src/main/java/com/pmd/dndplatform/
         SecurityConfig.java       - Spring Security setup: BCrypt, database-backed
                                     login, default-deny on every route,
                                     localhost-only /health, OWNER-only /api/admin,
-                                    form login
+                                    form login pointed at the React screen, the
+                                    permitted list of frontend files, and the
+                                    cookie-based CSRF token
+        WebConfig.java            - forwards the React app's own addresses to
+                                    index.html, so they survive being typed in
+                                    or reloaded
 
     user/
         Role.java                       - the account roles (OWNER, PLAYER)
@@ -167,6 +203,8 @@ src/main/java/com/pmd/dndplatform/
         UserAdminService.java           - the account rules (create, list, update,
                                           delete, plus the guards)
         UserAdminController.java        - the /api/admin/users endpoints
+        CurrentUserController.java      - /api/me: answers who is signed in, and
+                                          is refused when nobody is
 
         dto/
             CreateUserRequest.java  - incoming: new account fields
@@ -187,11 +225,18 @@ src/main/resources/
     db/migration/
         V1__create_users_table.sql - Flyway migration that creates the users table
 
+    static/    - EMPTY ON PURPOSE. The built frontend is placed at this path
+                 during a build, so anything left here by hand would collide
+                 with it. Frontend source belongs in frontend/src/.
+
 src/test/java/com/pmd/dndplatform/
 
     DndplatformApplicationTests.java - basic context-loads check
     SecurityConfigTest.java          - proves the Phase 2 Story 2 security rules
                                        (now via database login)
+    SecurityConfigTest.java          - also covers the Phase 2 Story 4 rules: the
+                                       React files are reachable when logged out,
+                                       and every other address is not
     UserAdminTest.java               - proves the Phase 2 Story 3 account rules:
                                        create, list, update, delete, role
                                        enforcement, hash-not-password storage,
@@ -199,6 +244,50 @@ src/test/java/com/pmd/dndplatform/
 
 src/test/resources/
     application-test.yaml - points tests at the pmd_dnd_test database
+
+frontend/                       - the React application (Phase 2 Story 4)
+
+    index.html                  - the single page every screen is drawn into
+    package.json                - frontend dependencies and build commands
+    package-lock.json           - the exact versions installed, so every machine
+                                  builds the same thing
+    vite.config.ts              - build config: React, Tailwind, and the @/ alias
+    tsconfig*.json              - TypeScript settings
+    eslint.config.js            - linting rules
+    components.json             - shadcn/ui settings
+
+    public/
+        favicon.svg             - requested by the browser at a fixed name, so it
+                                  cannot be fingerprinted and needs its own line
+                                  in SecurityConfig
+
+    src/
+        main.tsx                - starts the React application
+        App.tsx                 - decides which screen answers which address
+        index.css               - Tailwind plus the shadcn/ui variables
+
+        pages/
+            LoginPage.tsx       - the login screen: artwork, form, and the
+                                  request that signs a player in
+            HomePage.tsx        - placeholder landing screen: shows who is signed
+                                  in, and the sign-out button
+
+        components/ui/          - shadcn/ui components. These are OWNED here and
+                                  meant to be edited, not treated as library
+                                  files. Phase 4 Story 1 restyles them
+            button.tsx  card.tsx  input.tsx  label.tsx
+
+        lib/
+            utils.ts            - the class-name helper shadcn/ui components use
+
+        assets/                 - login_backdrop.png, title.png, badge.png.
+                                  Imported from TypeScript so the build
+                                  fingerprints them into /assets/
+
+    dist/                       - GENERATED. The built frontend. Git-ignored
+    node_modules/               - GENERATED. Installed dependencies. Git-ignored
+    node/                       - GENERATED. The Node that Maven installs.
+                                  Git-ignored
 
 pom.xml               - Maven build and dependencies
 mvnw, mvnw.cmd, .mvn/ - Maven wrapper
@@ -258,13 +347,23 @@ Story 3 (Owner-created user accounts, database-backed) ✅
 
 Story 3.5 (Fast rollback with versioned JARs) ✅
 
-Story 4 (Login screen as the only public surface) ⬜ next
+Story 4 (Login screen as the only public surface) ✅
 
-Story 4.5 (Health endpoint reports the real build) ⬜
+Story 4.5 (Health endpoint reports the real build) ⬜ next
 
 Story 5 (Full vertical slice, browser to API to database) ⬜
 
+Story 5.5 (Replace form login with a JSON endpoint) ⬜
+
 Stories 6a–6d (Device-bound passkey cluster) ⏸ deferred — needs the domain, see below
+
+Story 7 (Password change and reset) ⏸ deferred — scoped out on purpose, see below
+
+Story 8 (Enable and disable accounts) ⏸ deferred — scoped out on purpose, see below
+
+Story 9 (Grant and revoke DM access) ⏸ deferred — scoped out on purpose, see below
+
+Story 10 (Theme the login screen) ⬜
 
 
 ---
@@ -296,13 +395,44 @@ together, because all three need the same thing: a registered domain name.
 
 ---
 
+### Deferral note: the account management stories
+
+Stories 7, 8 and 9 are deferred for a different reason from the passkey cluster.
+Nothing blocks them. They were scoped out of Phase 2 Story 3 on purpose, because
+each carries risks worth thinking about on its own rather than folding into a
+story that was already large.
+
+- **Story 7 — password change and reset.** There is no way to change a password
+  today. The only recovery is deleting the account's row by hand and letting
+  startup seeding rebuild it, which works only for the owner and destroys the
+  account's history.
+- **Story 8 — enable and disable accounts.** Switching an account off without
+  deleting it. The `enabled` column already exists on the users table and is not
+  yet wired to anything, so this needs no database change.
+- **Story 9 — grant and revoke DM access.** A third role between owner and
+  player, for someone who runs sessions without controlling the platform. Owner
+  stays a role of one and nobody is ever promoted to it, which removes any path
+  to a one-click lockout. The `role` column stores the word rather than a number,
+  so this needs no database change either.
+
+**All three depend on the same missing capability: ending a signed-in session on
+demand.** Changing a password should end the account's other sessions, disabling
+an account should cut off anyone already signed in, and a role change should take
+effect on the next request rather than at the next sign-in. Spring Security
+provides the mechanism but it has to be configured, and it changes how sessions
+are stored. Whichever of the three is built first should do that work properly,
+because the other two inherit it. Skipping it leaves each story half-working in a
+way that is easy to miss.
+
+---
+
 **Full phase plan:**
 
 - **Phase 0 — Finish the Blueprint:** Complete the design and a single source-of-truth architecture document.
 - **Phase 1 — Stand Up the Server & Prove Deployment:** Rent the VPS, install Java and the database, deploy an empty Spring Boot app reachable at the server. *(core complete — Stories 11 and 12 deferred)*
 - **Phase 2 — Lock the Door (First Vertical Slice):** Spring Security on every route, hashed passwords, no public signup, login screen, React frontend skeleton, full browser → API → database loop.
 - **Phase 3 — Build the Data Backbone:** Definition/instance schema and the DM CSV-import GUI for bulk data.
-- **Phase 4 — Character Data & Display (No Combat):** The read-only character sheet, hover tooltips, drop-downs.
+- **Phase 4 — Character Data & Display (No Combat):** The read-only character sheet, hover tooltips, drop-downs. Opens with Story 1, building the design system, so components are styled once rather than restyled later.
 - **Phase 5 — The Calculation Engine:** Damage math, modifier-stacking/tracking, standardized-Pokémon generator — pure backend logic.
 - **Phase 6 — The Real-Time Spine:** WebSockets; the DM changes a value and everyone's screen updates instantly.
 - **Phase 7 — Battle:** On-turn/off-turn battle screens, dice rolling, turn flow, knockback.
@@ -358,8 +488,10 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.3.5.jar'
-   (a single runnable "fat" JAR). The version comes from '<version>' in 'pom.xml' and is bumped on each story branch: phase.story.child, so '2.3.5' is Phase 2 Story 3.5.
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.0.jar`
+   (a single runnable "fat" JAR containing the backend and the built frontend).
+   The version comes from `<version>` in `pom.xml` and is bumped on each story
+   branch: phase.story.child, so `2.4.0` is Phase 2 Story 4.
 2. Copy it to the server with `scp` and deploy it with the script. The manual
    `mv` into `/opt/dndplatform` that this step used to describe is gone — the
    deploy script now places the build. See **Repeatable deploy process** below
@@ -375,14 +507,14 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 Each deploy:
 
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-2.3.5.jar`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.0.jar`
 2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
-   `scp target/dndplatform-2.3.5.jar matthew@<server-ip>:~/`
+   `scp target/dndplatform-2.4.0.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
    The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
    name carrying its version and the time of install (for example
-   `dndplatform-2.3.5-20260724-034213.jar`), repoints the `current.jar` symlink
+   `dndplatform-2.4.0-20260724-034213.jar`), repoints the `current.jar` symlink
    at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
    and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
    On failure it deletes nothing and prints the exact one-line rollback command

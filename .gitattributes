@@ -17,3 +17,14 @@ mvnw text eol=lf
 
 # Ensures Caddyfile keeps Linux line endings:
 Caddyfile text eol=lf
+
+# Image assets: binary, no line-ending conversion
+*.png binary
+*.svg text eol=lf
+
+# Frontend assets: binary, no line-ending conversion
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.otf binary
+*.ico binary
