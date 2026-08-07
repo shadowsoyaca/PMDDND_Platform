@@ -64,11 +64,13 @@ dndplatform-2.3.5-20260724-040359.jar
              version, from <version> in pom.xml
 ```
 
+<!-- NOTE: Phase 2 Story 4.5 - the last sentence was a promise about future work.
+     It is now describing something that exists. -->
 **The version is `phase.story.child`.** `2.3.5` is Phase 2 Story 3.5. It is set
 in `pom.xml` and bumped on each story branch. That is the single place it is
-defined: the deploy script reads it back out of the uploaded filename rather
-than being told separately, and Phase 2 Story 4.5 will read it out of the running app so
-`/health` reports the real build.
+defined. Two separate things read it back rather than being told it: the deploy
+script takes it from the uploaded filename, and the build writes it into the JAR
+so `/health` can report it.
 
 **The timestamp is generated at install time, not read off the file.** This is
 the part that makes the whole story work. Without the timestamp, the filename would be dndplatform-2.3.5.jar. So:
@@ -287,16 +289,44 @@ No output means identical.
 
 ---
 
-## Known gap
+<!-- NOTE: Phase 2 Story 4.5 - this section used to be called "Known gap" and
+     said /health could not tell you which build was running. That is fixed, so
+     the section now describes how to ask rather than why you cannot. -->
+## Confirming which build is running
 
-`/health` returns a hand-typed version string, so it reports the same text
-whichever build is running and cannot be used to confirm a rollback took effect.
-Use the pointer and the startup log line instead:
+Ask the app. Run this **on the server**:
+
+```bash
+curl http://localhost:8080/health
+```
+
+It answers with one line naming the version and the moment that build was made:
+
+```
+PMD D&D Platform is up and running! Version: 2.4.5, built 2026-08-07T01:30:25Z
+```
+
+Both values come from the build itself, so nothing has to be kept up to date by
+hand and the answer cannot drift away from the truth. The time is UTC.
+
+**The build time is the part that matters after a rollback.** The version alone
+is not enough. Deploying the same version twice in one evening is normal, and
+those two builds are told apart by their timestamps and nothing else. If you have
+moved the pointer back and want to know whether it took effect, the timestamp is
+what changes.
+
+`localhost` is required. `/health` answers only requests from the machine itself,
+so this cannot be run from your laptop against the server.
+
+Two older ways of asking still work and are worth knowing, because they answer
+even when the app will not start:
 
 ```bash
 readlink -f /opt/dndplatform/current.jar
 sudo journalctl -u dndplatform --since "-10m" --no-pager | grep -i "Starting DndplatformApplication"
 ```
 
-The log line reports the version the running app was built as. Phase 2 Story 4.5
-puts the real build onto `/health` and closes this gap.
+The first says which build the pointer resolves to. The second reports the
+version out of the startup log. Both read the file rather than the running
+application, which is exactly what you want when there is no running application
+to ask.
