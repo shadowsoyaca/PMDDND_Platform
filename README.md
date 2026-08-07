@@ -291,6 +291,9 @@ frontend/                       - the React application (Phase 2 Story 4)
 
 pom.xml               - Maven build and dependencies
 mvnw, mvnw.cmd, .mvn/ - Maven wrapper
+CREDITS.md            - third-party artwork, fonts, icons, and libraries, with
+                        their sources and licences. Add an entry whenever an
+                        asset is added, not afterwards
 
 deploy/
     deploy.sh           - server-side deploy script (Phase 2 Story 3.5: versioned builds + symlink)
