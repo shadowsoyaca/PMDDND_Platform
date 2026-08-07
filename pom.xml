@@ -37,23 +37,28 @@
 	     PROJECT IDENTITY
 
 	     groupId + artifactId + version uniquely name this project. Together they
-	     also decide the built filename: dndplatform-2.4.0.jar
+	     also decide the built filename: dndplatform-2.4.5.jar
 	     ====================================================================== -->
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
 
 	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
 	     identified nothing. The number is now phase.story.child, so this build is
-	     Phase 2 Story 4. Bump it on each story branch.
+	     Phase 2 Story 4.5. Bump it on each story branch.
 
-	     This is what names the built file: target/dndplatform-2.4.0.jar. The
+	     This is what names the built file: target/dndplatform-2.4.5.jar. The
 	     deploy script reads the version back out of that filename, so this is the
 	     single place the version is set.
+
+	     NOTE: Phase 2 Story 4.5 - it is now also the only place /health gets its
+	     version from, by way of the build-info execution further down. Before
+	     this story the endpoint carried its own copy typed in by hand, and the
+	     two had drifted apart.
 
 	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
 	     you", which is the wrong thing to say about a build you deploy and might
 	     later roll back to. -->
-	<version>2.4.0</version>
+	<version>2.4.5</version>
 
 	<!-- ======================================================================
 	     PROJECT METADATA
@@ -185,10 +190,42 @@
 			<!-- Takes the plain JAR that Maven produces and repackages it into an
 			     executable "fat" JAR with every dependency bundled inside, plus a
 			     launcher so "java -jar" works. This is what makes a single file
-			     deployable to the server with no libraries installed alongside it. -->
+			     deployable to the server with no libraries installed alongside it.
+
+			     NOTE: Phase 2 Story 4.5 - the <executions> block below is new.
+
+			     The build-info goal writes a small file into the build output at
+			     META-INF/build-info.properties, holding the version from the
+			     <version> tag above and the clock time this build ran. Spring Boot
+			     looks for that file at startup and, if it finds it, creates a
+			     BuildProperties bean from it. HealthController reads that bean.
+			     That is the whole chain that replaced a version typed in by hand.
+
+			     Two things about this that are not visible in the XML:
+
+			     1. The repackage step is NOT lost by adding this. The parent POM
+			        already declares an execution with the id "repackage", and
+			        Maven merges executions by id rather than replacing the whole
+			        list. A different id is an addition. The same id would have
+			        been an override. This looks like it should break the fat JAR
+			        and does not.
+
+			     2. The goal has no <phase> here because it does not need one. Its
+			        own default is generate-resources, which runs before Java is
+			        compiled and therefore before anything is packaged. Naming a
+			        phase would only be a chance to name the wrong one.
+
+			     The generated file is not committed. It lives in target/, which is
+			     rebuilt from scratch by every build. -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>build-info</id>
+						<goals><goal>build-info</goal></goals>
+					</execution>
+				</executions>
 			</plugin>
 
 			<!-- ==============================================================

@@ -153,12 +153,24 @@ What must be installed before the project will build and run:
    ```
    http://localhost:8080/health
    ```
-   A successful response looks like: `PMD D&D Platform is up and running! Version: v2`
+   <!-- NOTE: Phase 2 Story 4.5 - new response format, and the paragraph about
+        the version being hand-typed is gone because it no longer is. -->
+   A successful response looks like:
+   ```
+   PMD D&D Platform is up and running! Version: 2.4.5, built 2026-08-07T01:30:25Z
+   ```
+   The version and the build time both come from the build, so neither is
+   maintained by hand. The time is UTC.
+
+   Started with F5 in VS Code instead, the response reads
+   `Version: development build, not produced by Maven`. That is correct rather
+   than broken. The build information is written by Maven, and pressing F5
+   compiles with the IDE's own compiler, so there is nothing to report. Run
+   `.\mvnw.cmd spring-boot:run` if you want to see the real values locally.
+
    This works locally because `/health` is allowed for requests from the machine
    itself. From Phase 2 Story 2 on, every other route sends a logged-out visitor
-   to the login page, and outside requests to `/health` are blocked. The version
-   in that message is written into the code by hand and does not follow
-   `pom.xml`; Phase 2 Story 4.5 makes it report the real build.
+   to the login page, and outside requests to `/health` are blocked.
 4. Open the application itself at:
    ```
    http://localhost:8080/
@@ -181,7 +193,8 @@ src/main/java/com/pmd/dndplatform/
 
     DndplatformApplication.java   - application entry point
 
-    HealthController.java         - serves the /health endpoint
+    HealthController.java         - serves the /health endpoint, reporting the
+                                    version and build time recorded by Maven
 
     config/
         SecurityConfig.java       - Spring Security setup: BCrypt, database-backed
@@ -352,9 +365,9 @@ Story 3.5 (Fast rollback with versioned JARs) ✅
 
 Story 4 (Login screen as the only public surface) ✅
 
-Story 4.5 (Health endpoint reports the real build) ⬜ next
+Story 4.5 (Health endpoint reports the real build) ✅
 
-Story 5 (Full vertical slice, browser to API to database) ⬜
+Story 5 (Full vertical slice, browser to API to database) ⬜ next
 
 Story 5.5 (Replace form login with a JSON endpoint) ⬜
 
@@ -491,10 +504,14 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.0.jar`
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.5.jar`
    (a single runnable "fat" JAR containing the backend and the built frontend).
    The version comes from `<version>` in `pom.xml` and is bumped on each story
-   branch: phase.story.child, so `2.4.0` is Phase 2 Story 4.
+   branch: phase.story.child, so `2.4.5` is Phase 2 Story 4.5.
+   <!-- NOTE: Phase 2 Story 4.5 - the build also writes this version and the
+        current time into the JAR, which is where /health gets its answer. -->
+   The build also records that version and the time it ran inside the JAR, so
+   `/health` can report which build is running.
 2. Copy it to the server with `scp` and deploy it with the script. The manual
    `mv` into `/opt/dndplatform` that this step used to describe is gone — the
    deploy script now places the build. See **Repeatable deploy process** below
@@ -510,19 +527,24 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 Each deploy:
 
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.0.jar`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.5.jar`
 2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
-   `scp target/dndplatform-2.4.0.jar matthew@<server-ip>:~/`
+   `scp target/dndplatform-2.4.5.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
    The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
    name carrying its version and the time of install (for example
-   `dndplatform-2.4.0-20260724-034213.jar`), repoints the `current.jar` symlink
+   `dndplatform-2.4.5-20260724-034213.jar`), repoints the `current.jar` symlink
    at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
    and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
    On failure it deletes nothing and prints the exact one-line rollback command
    naming the previous build.
-4. Confirm live from the server: `curl http://localhost:8080/health`.
+<!-- NOTE: Phase 2 Story 4.5 - this step used to only prove the app was alive.
+     The response now names the build, so it proves which one went live. -->
+4. Confirm live from the server: `curl http://localhost:8080/health`. The
+   response names the version and build time, so this confirms *which* build is
+   running rather than only that something is. The build time is the half that
+   matters when the same version has been deployed twice.
 
 **Rolling back.** Move the symlink and restart. The failure message prints this
 line for you with the right build filled in:
