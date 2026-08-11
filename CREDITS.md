@@ -14,7 +14,7 @@ licence is permissive, because the licence terms live at that URL and can be
 checked again later. Where the origin is genuinely unknown, say so plainly
 rather than leaving the item out.
 
-Last reviewed: Phase 2 Story 4.
+Last reviewed: Phase 2 Story 4.7.
 
 ---
 
@@ -155,6 +155,11 @@ date on the next install and would be less accurate than the files themselves.
 
 The principal frameworks and tools, with their licences:
 
+The five test tools were added in Phase 2 Story 4.7. They are development
+dependencies and appear in no built JAR, so they are never served to anyone.
+They are recorded anyway, because this table covers what the project depends on
+rather than only what reaches a browser.
+
 | Component | Purpose | Licence |
 | --- | --- | --- |
 | Spring Boot | Backend framework | Apache License 2.0 |
@@ -168,6 +173,11 @@ The principal frameworks and tools, with their licences:
 | TypeScript | Language | Apache License 2.0 |
 | Vite | Frontend build tool | MIT License |
 | Node.js | Frontend build runtime | MIT License |
+| Vitest | Frontend test runner | MIT License |
+| React Testing Library | Rendering and querying components in tests | MIT License |
+| jsdom | Fake browser the frontend tests run inside | MIT License |
+| jest-dom | Page-shaped assertions for tests | MIT License |
+| user-event | Simulated typing and clicking in tests | MIT License |
 | Tailwind CSS | Styling | MIT License |
 | shadcn/ui | Component source | MIT License |
 | Radix UI | Component behaviour and accessibility | MIT License |

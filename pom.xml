@@ -37,16 +37,16 @@
 	     PROJECT IDENTITY
 
 	     groupId + artifactId + version uniquely name this project. Together they
-	     also decide the built filename: dndplatform-2.4.5.jar
+	     also decide the built filename: dndplatform-2.4.7.jar
 	     ====================================================================== -->
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
 
 	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
 	     identified nothing. The number is now phase.story.child, so this build is
-	     Phase 2 Story 4.5. Bump it on each story branch.
+	     Phase 2 Story 4.7. Bump it on each story branch.
 
-	     This is what names the built file: target/dndplatform-2.4.5.jar. The
+	     This is what names the built file: target/dndplatform-2.4.7.jar. The
 	     deploy script reads the version back out of that filename, so this is the
 	     single place the version is set.
 
@@ -58,7 +58,7 @@
 	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
 	     you", which is the wrong thing to say about a build you deploy and might
 	     later roll back to. -->
-	<version>2.4.5</version>
+	<version>2.4.7</version>
 
 	<!-- ======================================================================
 	     PROJECT METADATA
@@ -239,8 +239,7 @@
 			     future machine all build with the same toolchain. These two
 			     numbers match the versions currently installed locally.
 
-			     The three executions run in the order written, all during
-			     generate-resources:
+			     The three executions run in the order written:
 			       1. install-node-and-npm - downloads the pinned Node into the project
 			       2. npm ci               - installs dependencies exactly as pinned
 			                                 in package-lock.json (unlike "npm install",
@@ -250,6 +249,34 @@
 
 			     frontend/node/ and frontend/dist/ are both generated and both
 			     git-ignored.
+
+			     NOTE: Phase 2 Story 4.7 - all three now name prepare-package.
+			     Before this story they had no <phase> at all, which left them on
+			     this plugin's own default of generate-resources.
+
+			     That default is the problem. Maven phases run in a fixed order and
+			     every phase before the requested one runs too, so
+			     generate-resources runs for "test" just as much as for "package".
+			     A backend test run therefore spent about two and a half minutes
+			     downloading Node, reinstalling 504 packages, and bundling React,
+			     to produce files that no backend test ever opens. Measured: 3m23s
+			     before, about 45s after.
+
+			     prepare-package is the last phase before the JAR is sealed. It
+			     runs for "package" and does not run for "test", which is exactly
+			     the distinction wanted. The copy-frontend-build step below already
+			     sits in this phase, and within one phase Maven runs plugins in the
+			     order they are declared in this file. This plugin is declared
+			     above maven-resources-plugin, so the bundle is still built before
+			     it is copied. Reordering these two plugin blocks would break the
+			     build in a way that is not obvious from either one on its own.
+
+			     KNOWN CONSEQUENCE: "mvnw spring-boot:run" no longer produces a
+			     frontend, because it stops short of prepare-package. That changes
+			     nothing in practice. The application is started with F5 in VS
+			     Code, which does not run Maven at all, and frontend work is done
+			     against the Vite dev server with "npm run dev". A build that is
+			     actually deployed always goes through "package" and is unaffected.
 			     ============================================================== -->
 			<plugin>
 				<groupId>com.github.eirslett</groupId>
@@ -263,17 +290,62 @@
 				<executions>
 					<execution>
 						<id>install-node-and-npm</id>
+						<phase>prepare-package</phase>
 						<goals><goal>install-node-and-npm</goal></goals>
 					</execution>
 					<execution>
 						<id>npm-ci</id>
+						<phase>prepare-package</phase>
 						<goals><goal>npm</goal></goals>
 						<configuration><arguments>ci</arguments></configuration>
 					</execution>
 					<execution>
 						<id>npm-build</id>
+						<phase>prepare-package</phase>
 						<goals><goal>npm</goal></goals>
 						<configuration><arguments>run build</arguments></configuration>
+					</execution>
+
+					<!-- NOTE: Phase 2 Story 4.7 - this fourth execution is new.
+
+					     It runs the frontend tests, and it exists so that a
+					     broken frontend cannot become a deployable JAR.
+
+					     The problem it solves: ".\mvnw.cmd test" runs the
+					     backend tests only. It does not look at the frontend at
+					     all. So a broken screen passes all 30 backend tests, and
+					     the only thing that would have caught it is a person
+					     remembering to run "npm test" by hand. Remembering is
+					     not a guarantee.
+
+					     With this here, "clean package" fails and produces no
+					     JAR when a frontend test fails. There is then nothing to
+					     upload, which is the point: the broken build cannot
+					     reach the server because it does not exist.
+
+					     WHY IT IS HERE AND NOT IN THE test PHASE. Putting it
+					     there would drag the whole frontend toolchain back into
+					     every backend test run, which is the cost the phase
+					     change above just removed. prepare-package runs for
+					     "package" and not for "test", so the fast loop stays
+					     fast and the thing that gets deployed is the thing that
+					     gets checked.
+
+					     WHY IT IS LAST. "npm run build" runs the TypeScript
+					     compiler. If a type is wrong, that is a more basic
+					     failure than a test disagreeing, and it is more useful
+					     to be told about it first.
+
+					     COST: roughly 45 seconds on a package build. Almost none
+					     of that is the tests themselves, which take about six.
+					     It is the "npm ci" step above having just deleted
+					     node_modules, which throws away the build cache with it,
+					     so the first run afterwards rebuilds it from scratch. -->
+					<execution>
+						<id>npm-test</id>
+						<phase>prepare-package</phase>
+						<goals><goal>npm</goal></goals>
+						<configuration><arguments>test</arguments></configuration>
 					</execution>
 				</executions>
 			</plugin>
