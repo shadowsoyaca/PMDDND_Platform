@@ -42,6 +42,7 @@ so the README reflects reality as the project grows.
 | ORM / data access | Spring Data JPA (Hibernate) | In use (Phase 2 Story 3) |
 | Frontend | React + TypeScript | In use (Phase 2 Story 4) |
 | Frontend build | Vite + Node.js | In use (Phase 2 Story 4) — run by Maven during `package`, so one command builds both halves |
+| Frontend tests | Vitest + React Testing Library | In use (Phase 2 Story 4.7) — `npm test` in `frontend/`. Kept out of `mvnw test` to keep that fast, but run by `mvnw clean package` so a broken frontend cannot become a deployable JAR |
 | UI styling / components | Tailwind CSS + shadcn/ui | In use (Phase 2 Story 4) — chosen over MUI; theming deferred to Phase 2 Story 10 and Phase 4 Story 1 |
 | Hover tooltips | Radix UI | In use (Phase 2 Story 4) — arrives with shadcn/ui, which settles the earlier Radix / Tippy.js question |
 | Animations | Motion (Framer Motion) | Planned (Phase 9) |
@@ -62,7 +63,9 @@ What must be installed before the project will build and run:
 - **JDK 17** — the project is locked to Java 17 (Phase 1 Story 4 / Phase 1 Story 5). Not a newer JDK.
   - Local (dev machine): Eclipse Temurin 17.0.19.
   - Server: Ubuntu OpenJDK 17.0.19 (headless). Both are OpenJDK 17 builds; the JAR is portable between them.
-- **Node.js 24** and **npm 11** — needed to build the React frontend (Phase 2 Story 4). Maven downloads its own pinned copy into `frontend/node/` during a build, so a plain `mvnw` build works without these installed. Install them anyway if you intend to work on the frontend directly, since running `npm run dev` and `npm run build` by hand is far quicker than a full Maven cycle.
+<!-- NOTE: Phase 2 Story 4.7 - Node and npm are now needed rather than merely
+     convenient, because the frontend tests only run through npm. -->
+- **Node.js 24** and **npm 11** — needed to build the React frontend (Phase 2 Story 4). Maven downloads its own pinned copy into `frontend/node/` during a build, so a plain `mvnw` build works without these installed. Install them anyway: frontend work is far quicker through `npm run dev` and `npm run build` than through a full Maven cycle, and since Phase 2 Story 4.7 the frontend tests are run with `npm test`. A `package` build runs those tests as well, but there is no Maven command that runs them on their own.
 - **Git** + **GitHub Desktop** — version control and pushing to the repo.
 - **VS Code** with the Java extensions (Extension Pack for Java; Spring Boot Extension Pack).
 - **WSL (Ubuntu)** — local Linux environment mirroring the server.
@@ -86,9 +89,21 @@ What must be installed before the project will build and run:
    slower because Node is downloaded; later runs add roughly ten to thirty
    seconds.
 
-   When working on the frontend alone, build it directly instead — from
-   `frontend/`, `npm run build` finishes in seconds and reports the same
-   TypeScript errors. Maven is only needed when the JAR itself is wanted.
+   <!-- NOTE: Phase 2 Story 4.7 - the frontend steps moved to prepare-package,
+        so they now run for "package" and not for "test". -->
+   The frontend is built **and tested** during `package`, and neither happens
+   during `test`. A run of `.\mvnw.cmd test` does no frontend work at all, which
+   is why it takes about thirty seconds rather than three and a half minutes. A
+   `clean package` takes about three minutes and will fail, producing no JAR, if
+   any frontend test fails.
+
+   One consequence worth knowing: `.\mvnw.cmd spring-boot:run` stops short of
+   `package`, so it serves no frontend. Use F5 in VS Code for the backend and
+   `npm run dev` for the frontend instead.
+
+   When working on the frontend alone, build it directly — from `frontend/`,
+   `npm run build` finishes in seconds and reports the same TypeScript errors.
+   Maven is only needed when the JAR itself is wanted.
 4. **Database** — the app is connected to PostgreSQL 16 (Phase 2 Story 3).
    - On the dev machine, install PostgreSQL 16 locally and create the `pmd_app` role plus two databases: `pmd_dnd` and `pmd_dnd_test`.
    - Flyway creates the tables on first startup; you never run the table SQL by hand.
@@ -157,7 +172,7 @@ What must be installed before the project will build and run:
         the version being hand-typed is gone because it no longer is. -->
    A successful response looks like:
    ```
-   PMD D&D Platform is up and running! Version: 2.4.5, built 2026-08-07T01:30:25Z
+   PMD D&D Platform is up and running! Version: 2.4.7, built 2026-08-11T02:39:22Z
    ```
    The version and the build time both come from the build, so neither is
    maintained by hand. The time is UTC.
@@ -183,6 +198,76 @@ What must be installed before the project will build and run:
    Test in a private browsing window. A session cookie left over from an earlier
    run will otherwise make a logged-out visit look like a signed-in one, which is
    a confusing thing to debug.
+
+---
+
+<!-- NOTE: Phase 2 Story 4.7 - new section. Before this story there was only one
+     test command, it was not written down here, and the frontend had no tests
+     at all. -->
+## Running the Tests
+
+There are **two** test commands and both are run at the testing step of every
+story. Neither one runs the other, so running only one proves only half.
+
+**Backend** — Windows PowerShell, from the repo root:
+
+```
+.\mvnw.cmd test
+```
+
+30 tests, about thirty seconds. This does not build or test the frontend.
+
+**Frontend** — Windows PowerShell, from `frontend/`:
+
+```
+npm test
+```
+
+9 tests, about six seconds. Runs every `*.test.ts` and `*.test.tsx` file anywhere
+under `frontend/`, so a new test file is picked up with no configuration to
+edit. It runs once and exits with a pass or fail code rather than watching.
+
+The first run after a Maven `package` takes closer to a minute. That is not a
+fault: `npm ci` deletes and reinstalls `node_modules` by design, which throws
+away the build cache along with it. The next run is back to six seconds.
+
+For a watching run while writing tests, use `npx vitest` from `frontend/`.
+
+### The build runs the frontend tests too, at the moment it matters
+
+`.\mvnw.cmd test` deliberately does **not** run them. Making it do so would drag
+the whole frontend toolchain back into every backend test run, which is the cost
+this story removed. The fast loop stays fast.
+
+`.\mvnw.cmd clean package` **does** run them, since Phase 2 Story 4.7. That is
+the command that produces the JAR you upload to the server. If a frontend test
+fails, the build fails and no JAR is created. There is then nothing to upload,
+which is the point: a broken frontend cannot reach the server, because the file
+does not exist.
+
+So while working, you run both commands yourself and get quick answers. When it
+actually matters, the build enforces it rather than trusting anyone to remember.
+
+**What this still does not cover.** Two things, both known and both planned.
+
+- Merging. The build refuses to produce a JAR, which stops a bad deploy, but
+  merging happens before anyone builds one.
+- A machine other than the developer's. Every test so far has run on one Windows
+  laptop that already has everything installed. A file that was used but never
+  committed still passes there, because it is sitting on the disk rather than in
+  the repository.
+
+Both are closed by running the two suites automatically on every pull request,
+which is planned as its own story.
+
+### Where the frontend tests live
+
+Beside the screen they test, as `LoginPage.test.tsx` next to `LoginPage.tsx`.
+A screen and its tests move together, and a screen with no test is visible in
+the folder listing rather than hidden in a folder nobody opens.
+
+`frontend/src/test/` holds the shared pieces: `setup.ts`, which runs before
+every test file, and `responses.ts`, which builds the answers the server sends.
 
 ---
 
@@ -264,7 +349,11 @@ frontend/                       - the React application (Phase 2 Story 4)
     package.json                - frontend dependencies and build commands
     package-lock.json           - the exact versions installed, so every machine
                                   builds the same thing
-    vite.config.ts              - build config: React, Tailwind, and the @/ alias
+    vite.config.ts              - build config: React, Tailwind, and the @/ alias,
+                                  plus the Vitest settings (Phase 2 Story 4.7).
+                                  The test settings live here rather than in a
+                                  file of their own so tests are built exactly
+                                  like the application
     tsconfig*.json              - TypeScript settings
     eslint.config.js            - linting rules
     components.json             - shadcn/ui settings
@@ -284,6 +373,19 @@ frontend/                       - the React application (Phase 2 Story 4)
                                   request that signs a player in
             HomePage.tsx        - placeholder landing screen: shows who is signed
                                   in, and the sign-out button
+
+            LoginPage.test.tsx  - Phase 2 Story 4.7. Tests sit beside the screen
+            HomePage.test.tsx     they test. Both cover the content-type check
+                                  that tells a real answer apart from a bounce,
+                                  which is the trap two bugs came out of
+
+        test/                   - Phase 2 Story 4.7. Shared test pieces. Nothing
+                                  here is a test itself
+            setup.ts            - runs before every test file: registers the
+                                  page-shaped matchers and clears the rendered
+                                  screen between tests
+            responses.ts        - builds the answers the server sends, so a test
+                                  says which shape it wants and nothing else
 
         components/ui/          - shadcn/ui components. These are OWNED here and
                                   meant to be edited, not treated as library
@@ -367,7 +469,12 @@ Story 4 (Login screen as the only public surface) ✅
 
 Story 4.5 (Health endpoint reports the real build) ✅
 
-Story 5 (Full vertical slice, browser to API to database) ⬜ next
+<!-- NOTE: Phase 2 Story 4.7 - new line. Carded after Story 4.5 merged, and
+     placed before Story 5 because Story 5 is the first screen with enough logic
+     that clicking through it stops being adequate. -->
+Story 4.7 (Frontend test framework) ✅
+
+Story 5 (Owner user management screen and role-based landing) ⬜ next
 
 Story 5.5 (Replace form login with a JSON endpoint) ⬜
 
@@ -504,10 +611,10 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.5.jar`
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.7.jar`
    (a single runnable "fat" JAR containing the backend and the built frontend).
    The version comes from `<version>` in `pom.xml` and is bumped on each story
-   branch: phase.story.child, so `2.4.5` is Phase 2 Story 4.5.
+   branch: phase.story.child, so `2.4.7` is Phase 2 Story 4.7.
    <!-- NOTE: Phase 2 Story 4.5 - the build also writes this version and the
         current time into the JAR, which is where /health gets its answer. -->
    The build also records that version and the time it ran inside the JAR, so
@@ -527,14 +634,14 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 Each deploy:
 
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.5.jar`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.7.jar`
 2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
-   `scp target/dndplatform-2.4.5.jar matthew@<server-ip>:~/`
+   `scp target/dndplatform-2.4.7.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
    The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
    name carrying its version and the time of install (for example
-   `dndplatform-2.4.5-20260724-034213.jar`), repoints the `current.jar` symlink
+   `dndplatform-2.4.7-20260724-034213.jar`), repoints the `current.jar` symlink
    at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
    and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
    On failure it deletes nothing and prints the exact one-line rollback command
