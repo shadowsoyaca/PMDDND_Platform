@@ -303,7 +303,7 @@ curl http://localhost:8080/health
 It answers with one line naming the version and the moment that build was made:
 
 ```
-PMD D&D Platform is up and running! Version: 2.4.7, built 2026-08-11T02:39:22Z
+PMD D&D Platform is up and running! Version: 2.4.8, built 2026-08-11T02:39:22Z
 ```
 
 Both values come from the build itself, so nothing has to be kept up to date by

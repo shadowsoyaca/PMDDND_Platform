@@ -14,7 +14,7 @@ licence is permissive, because the licence terms live at that URL and can be
 checked again later. Where the origin is genuinely unknown, say so plainly
 rather than leaving the item out.
 
-Last reviewed: Phase 2 Story 4.7.
+Last reviewed: Phase 2 Story 4.8.
 
 ---
 
@@ -160,6 +160,12 @@ dependencies and appear in no built JAR, so they are never served to anyone.
 They are recorded anyway, because this table covers what the project depends on
 rather than only what reaches a browser.
 
+The last two rows were added in Phase 2 Story 4.8, on the same reasoning. They
+are used by the pull request checks and appear in nothing that is deployed, but
+the project does depend on them. They are also the only entries here that are
+not declared in `pom.xml` or `package-lock.json`, since a workflow file names
+its own tools, so this table is the only record of them.
+
 | Component | Purpose | Licence |
 | --- | --- | --- |
 | Spring Boot | Backend framework | Apache License 2.0 |
@@ -183,6 +189,8 @@ rather than only what reaches a browser.
 | Radix UI | Component behaviour and accessibility | MIT License |
 | React Router | Client-side routing | MIT License |
 | Caddy | Reverse proxy and TLS | Apache License 2.0 |
+| GitHub Actions (`actions/checkout`, `actions/setup-java`, `actions/setup-node`) | Steps used by the pull request checks | MIT License |
+| PostgreSQL Docker image (`postgres:16`) | Throwaway database the pull request checks run against | PostgreSQL License |
 
 All of the above are permissively licensed and may be used in a private
 application without restriction.
