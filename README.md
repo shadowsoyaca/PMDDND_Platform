@@ -43,6 +43,7 @@ so the README reflects reality as the project grows.
 | Frontend | React + TypeScript | In use (Phase 2 Story 4) |
 | Frontend build | Vite + Node.js | In use (Phase 2 Story 4) — run by Maven during `package`, so one command builds both halves |
 | Frontend tests | Vitest + React Testing Library | In use (Phase 2 Story 4.7) — `npm test` in `frontend/`. Kept out of `mvnw test` to keep that fast, but run by `mvnw clean package` so a broken frontend cannot become a deployable JAR |
+| Continuous integration | GitHub Actions | In use (Phase 2 Story 4.8) — both suites run on every pull request to `main`, on a clean Linux machine. See Running the Tests |
 | UI styling / components | Tailwind CSS + shadcn/ui | In use (Phase 2 Story 4) — chosen over MUI; theming deferred to Phase 2 Story 10 and Phase 4 Story 1 |
 | Hover tooltips | Radix UI | In use (Phase 2 Story 4) — arrives with shadcn/ui, which settles the earlier Radix / Tippy.js question |
 | Animations | Motion (Framer Motion) | Planned (Phase 9) |
@@ -172,7 +173,7 @@ What must be installed before the project will build and run:
         the version being hand-typed is gone because it no longer is. -->
    A successful response looks like:
    ```
-   PMD D&D Platform is up and running! Version: 2.4.7, built 2026-08-11T02:39:22Z
+   PMD D&D Platform is up and running! Version: 2.4.8, built 2026-08-11T02:39:22Z
    ```
    The version and the build time both come from the build, so neither is
    maintained by hand. The time is UTC.
@@ -248,17 +249,68 @@ does not exist.
 So while working, you run both commands yourself and get quick answers. When it
 actually matters, the build enforces it rather than trusting anyone to remember.
 
-**What this still does not cover.** Two things, both known and both planned.
+<!-- NOTE: Phase 2 Story 4.8 - this subsection replaces a "what this still does
+     not cover" list that named merging and the single-machine problem as known
+     gaps planned for a later story. That story is this one, so the gaps are
+     described as closed rather than as outstanding. -->
+### GitHub runs both suites on every pull request
 
-- Merging. The build refuses to produce a JAR, which stops a bad deploy, but
-  merging happens before anyone builds one.
-- A machine other than the developer's. Every test so far has run on one Windows
-  laptop that already has everything installed. A file that was used but never
-  committed still passes there, because it is sitting on the disk rather than in
-  the repository.
+**Workflow:** `.github/workflows/pr-checks.yml` (Phase 2 Story 4.8).
 
-Both are closed by running the two suites automatically on every pull request,
-which is planned as its own story.
+Opening a pull request against `main` starts it. Nobody triggers it and there is
+nothing to install. It produces two checks, which run at the same time on
+separate machines:
+
+| Check | What it runs |
+|-------|--------------|
+| `Backend tests` | `./mvnw --batch-mode test`, against a throwaway PostgreSQL 16 container |
+| `Frontend tests` | `npm ci`, then `npm run build`, then `npm test` |
+
+`main` carries a branch protection rule requiring both. While either is red the
+merge button is unavailable.
+
+**What this buys that the two local commands do not.** Being precise, because it
+is narrower than it first sounds:
+
+- **Merging is gated.** `mvnw clean package` already refuses to produce a JAR
+  when a frontend test fails, so a broken build cannot be deployed. Merging
+  happens long before anyone builds a JAR, and that is the gap this closes.
+- **The repository is proven sufficient on its own.** Every run starts from an
+  empty Linux machine and clones the repository, so a file that was created,
+  used, and never committed fails here while passing locally. It passes locally
+  because it is sitting on the disk. That is not carelessness and no amount of
+  care prevents it; the local machine simply cannot see the difference.
+
+**What it does not buy.** It runs the same tests you already run, so it will not
+catch a bug those tests miss. And because the deployable JAR is built on the
+Windows machine from the working directory, an uncommitted file or a
+wrong-cased filename would not by itself reach the server. What it would do is
+make the repository unable to rebuild the application, which matters when the
+laptop is replaced, lost, or cloned from.
+
+**It cannot approve or merge anything.** It reports a result and stops. The
+workflow requests read-only permissions, so it has no write access to the
+repository at all. Its only effect on merging is to take the button away while a
+check is red.
+
+#### When a check fails
+
+1. Open the pull request and click **Details** next to the red check, or use the
+   **Checks** tab. Every run is also listed under the repository's **Actions**
+   tab.
+2. Expand the red step. The failing one is expanded already; the green steps
+   above it are setup and rarely interesting.
+3. Reproduce it locally with the matching command from this section. Most
+   failures are ordinary test failures and behave identically on both machines.
+4. If it passes locally and fails here, it is one of the faults the checks exist
+   to find. Look for a file you never committed, or a filename whose
+   capitalisation differs from what the code imports. Windows treats
+   `LoginPage.tsx` and `loginpage.tsx` as one file and Linux treats them as two.
+5. Push a fix to the same branch. Both checks re-run by themselves.
+
+A worked example is in this story's branch log: `mvnw` had been committed
+without its executable bit since the wrapper was first added, which is invisible
+on Windows and a `Permission denied` on Linux.
 
 ### Where the frontend tests live
 
@@ -410,6 +462,13 @@ CREDITS.md            - third-party artwork, fonts, icons, and libraries, with
                         their sources and licences. Add an entry whenever an
                         asset is added, not afterwards
 
+.github/
+    workflows/
+        pr-checks.yml   - Phase 2 Story 4.8. Runs both test suites on a clean
+                          Linux machine for every pull request to main. GitHub
+                          finds it by its path, so the folder name and the
+                          workflows/ folder inside it are both fixed
+
 deploy/
     deploy.sh           - server-side deploy script (Phase 2 Story 3.5: versioned builds + symlink)
     dndplatform.service - reference copy of the systemd unit
@@ -473,6 +532,11 @@ Story 4.5 (Health endpoint reports the real build) ✅
      placed before Story 5 because Story 5 is the first screen with enough logic
      that clicking through it stops being adequate. -->
 Story 4.7 (Frontend test framework) ✅
+
+<!-- NOTE: Phase 2 Story 4.8 - new line. Taken ahead of Story 5 on purpose, so
+     Story 5 is the first story built with the checks already in place rather
+     than the first that needed them. -->
+Story 4.8 (Both test suites run on every pull request) ✅
 
 Story 5 (Owner user management screen and role-based landing) ⬜ next
 
@@ -611,10 +675,10 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.7.jar`
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.8.jar`
    (a single runnable "fat" JAR containing the backend and the built frontend).
    The version comes from `<version>` in `pom.xml` and is bumped on each story
-   branch: phase.story.child, so `2.4.7` is Phase 2 Story 4.7.
+   branch: phase.story.child, so `2.4.8` is Phase 2 Story 4.8.
    <!-- NOTE: Phase 2 Story 4.5 - the build also writes this version and the
         current time into the JAR, which is where /health gets its answer. -->
    The build also records that version and the time it ran inside the JAR, so
@@ -634,14 +698,14 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 Each deploy:
 
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.7.jar`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.8.jar`
 2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
-   `scp target/dndplatform-2.4.7.jar matthew@<server-ip>:~/`
+   `scp target/dndplatform-2.4.8.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
    The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
    name carrying its version and the time of install (for example
-   `dndplatform-2.4.7-20260724-034213.jar`), repoints the `current.jar` symlink
+   `dndplatform-2.4.8-20260724-034213.jar`), repoints the `current.jar` symlink
    at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
    and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
    On failure it deletes nothing and prints the exact one-line rollback command

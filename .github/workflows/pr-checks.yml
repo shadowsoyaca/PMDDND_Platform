@@ -1,0 +1,270 @@
+# =============================================================================
+# Pull request checks
+#
+# Phase 2 Story 4.8.
+#
+# WHAT THIS FILE IS. A GitHub Actions workflow. GitHub reads every file under
+# .github/workflows/, and runs the ones whose "on:" block matches something that
+# just happened. Nobody starts this by hand and there is nothing to install. The
+# file being in the repository is the whole of the setup.
+#
+# WHAT IT DOES. On every pull request aimed at main, GitHub rents a fresh Linux
+# machine, clones the repository onto it, and runs both test suites. The result
+# appears on the pull request as a green tick or a red cross. The machine is
+# destroyed afterwards.
+#
+# WHAT IT DOES NOT DO. It does not approve a pull request, and it does not merge
+# one. It reports a result and stops. Approving is a human review, merging is a
+# button you press, and the permissions block below gives this job read access
+# only, so it could not do either even if it were asked to. The only effect it
+# has on merging is to take the button away while a check is red.
+#
+# WHY IT EXISTS. Two gaps were left open after Phase 2 Story 4.7.
+#
+#   1. Nothing stopped a broken frontend being MERGED. The package build refuses
+#      to produce a JAR when a frontend test fails, so a broken build cannot be
+#      deployed, but merging happens long before anyone builds a JAR.
+#
+#   2. The larger one. Every test this project has ever run has run on one
+#      Windows laptop that already has everything installed on it. That machine
+#      is blind to two whole classes of mistake:
+#
+#        - A file that was created, used, and never committed still passes
+#          locally, because it is sitting on the disk. The repository does not
+#          have it, so the server gets a build with a hole in it.
+#        - Linux treats capital letters in filenames as significant and Windows
+#          does not. LoginPage.tsx and loginpage.tsx are one file locally and
+#          two files on the server.
+#
+#      A machine that starts with nothing but what is in the repository finds
+#      both immediately, because it has no local copy to fall back on. That is
+#      the real value here, and it is not something the laptop can ever provide.
+#
+# TWO JOBS, NOT ONE. "backend" and "frontend" below are independent. GitHub runs
+# independent jobs at the same time on separate machines, so the pull request
+# waits for the slower of the two rather than the sum of both. It also produces
+# two separately named results, so a red cross says which half broke without
+# anyone opening a log. That naming matters more than it looks: the branch
+# protection rule on main lists required checks BY THE "name:" FIELD BELOW.
+# Renaming a job silently stops the rule requiring it, and the rule does not
+# complain, it just waves the merge through.
+# =============================================================================
+
+name: Pull request checks
+
+on:
+  # Runs when a pull request targeting main is opened, and again on every push
+  # to that pull request's branch afterwards. It deliberately does NOT run on a
+  # plain push to a branch with no pull request open, because the point is to
+  # gate merging and there is nothing to gate until a pull request exists.
+  pull_request:
+    branches: [main]
+
+# The token GitHub hands each job. Read-only is all either job needs: they clone
+# the repository and nothing else. Stated explicitly rather than left to the
+# repository default, because that default can be changed in a settings page
+# nobody remembers visiting.
+permissions:
+  contents: read
+
+jobs:
+
+  # ===========================================================================
+  # BACKEND
+  #
+  # Runs ".\mvnw.cmd test", which is the first of the two commands in CLAUDE.md,
+  # spelled the way a Linux machine spells it.
+  # ===========================================================================
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    # -------------------------------------------------------------------------
+    # A "service" is a container GitHub starts alongside the job and tears down
+    # with it. This one is a real PostgreSQL 16, the same major version as the
+    # dev machine and the server, so Flyway's migrations are exercised against
+    # the database they were written for rather than an in-memory substitute.
+    #
+    # The three POSTGRES_* variables below are read by the official image on
+    # first start. Between them they create the pmd_app role and the
+    # pmd_dnd_test database, which is the whole of the database setup this
+    # project's tests need. No SQL is run by hand.
+    #
+    # pmd_dnd is deliberately NOT created. Every test class carries
+    # @ActiveProfiles("test"), and src/test/resources/application-test.yaml
+    # points at pmd_dnd_test only. A test that reached for the real database
+    # would fail here, which is the correct outcome.
+    #
+    # ports: maps the container's 5432 to the runner's 5432. The Maven job runs
+    # directly on the runner rather than inside a container, so it reaches the
+    # database at localhost:5432. That is exactly the address hardcoded in
+    # application-test.yaml, so no test configuration changes for CI.
+    #
+    # options: is the part that is easy to leave out and painful to debug. A
+    # container is "started" the moment the process launches, which is a second
+    # or two before PostgreSQL is actually accepting connections. Without a
+    # health check the job races ahead and the first test fails with a
+    # connection refused that looks like a configuration fault. pg_isready is
+    # the image's own "are you ready" command, and GitHub holds the job at the
+    # starting line until it answers yes.
+    # -------------------------------------------------------------------------
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pmd_app
+          POSTGRES_DB: pmd_dnd_test
+          # Throwaway. See the note above the DB_PASSWORD line further down.
+          POSTGRES_PASSWORD: ci-throwaway-not-a-real-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Clones the repository at the pull request's merge result. Nothing else
+      # is on this machine, which is the entire point of the exercise.
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Installs Eclipse Temurin 17, matching the dev machine and the server.
+      # Not a newer JDK: the project is locked to 17 by <java.version> in
+      # pom.xml, and building on a newer one would prove the wrong thing.
+      #
+      # cache: maven saves the downloaded dependency tree between runs. Without
+      # it every run re-downloads roughly a hundred JARs from Maven Central,
+      # which is most of the wall clock time and none of the value.
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # ./mvnw, not mvnw.cmd. The wrapper ships as two files, a shell script for
+      # Unix and a batch file for Windows, and this machine is Linux.
+      #
+      # NOTE: Phase 2 Story 4.8 - mvnw had to be given its executable bit in git
+      # for this line to work at all. It was committed as mode 100644, which is
+      # invisible on Windows and is a permission denied on Linux. Fixed on this
+      # branch with "git update-index --chmod=+x mvnw".
+      #
+      # It had been wrong since the wrapper was first committed, and no local
+      # build ever noticed, because Windows has no such thing as an executable
+      # bit. It was found by reading "git ls-files -s mvnw" while writing this
+      # file, not by a run of this workflow, which had not happened yet. Worth
+      # recording accurately, because the useful part is not who found it. It is
+      # that a fault can sit in the repository indefinitely while every local
+      # build passes, which is the whole argument for the job below.
+      #
+      # --batch-mode turns off Maven's progress animation. It is drawn with
+      # carriage returns meant for a live terminal, and a log file records every
+      # frame of it, which buries the actual output.
+      #
+      # This runs the backend tests ONLY. Since Phase 2 Story 4.7 the frontend
+      # build sits in the prepare-package phase, which "test" stops short of, so
+      # no Node is downloaded and no React is bundled here. The frontend job
+      # below covers that half.
+      - name: Run the backend tests
+        run: ./mvnw --batch-mode test
+        env:
+          # ---------------------------------------------------------------
+          # The four runtime variables, all throwaway.
+          #
+          # WHY THEY ARE IN PLAIN TEXT RATHER THAN GITHUB SECRETS. A secret is
+          # for a value that would matter if it leaked. None of these would.
+          # The database lives inside a container that is created and destroyed
+          # within one job, is reachable only from that job, and holds nothing
+          # but rows the tests wrote themselves. Putting a worthless value in
+          # the secrets store makes it look important, and the next person has
+          # to check whether it is. Writing it here, next to a comment saying it
+          # is worthless, is the more honest arrangement.
+          #
+          # No real password, hash, or server address appears in this file, and
+          # none is needed. Nothing here touches the live server.
+          # ---------------------------------------------------------------
+
+          # The only one that actually has to be right. It has to match
+          # POSTGRES_PASSWORD in the service block above, or the tests cannot
+          # connect. Change one, change the other.
+          DB_PASSWORD: ci-throwaway-not-a-real-password
+
+          # These three are supplied for safety rather than necessity. Every
+          # test class today overrides them with @SpringBootTest(properties=...),
+          # so nothing reads what is set here. But application.yaml has no
+          # default for any of them and the application refuses to start without
+          # them, so the moment somebody writes a test that does not override
+          # them, the run would fail here with a startup error that says nothing
+          # about CI. Cheaper to supply them now than to explain that later.
+          APP_OWNER_USERNAME: ci-owner
+          # This is the same hash already committed in SecurityConfigTest.java,
+          # whose plaintext password is committed on the line above it in that
+          # same file. It is therefore provably worthless, which is why it was
+          # chosen over inventing a new one that would look like it mattered.
+          APP_OWNER_PASSWORD_HASH: '$2b$10$bAe1ZGhX8mLEvyx/z3Rm6OUIRul.mTB4F.J/k/QqLwu9wTK8WGite'
+          APP_OWNER_PERSON_NAME: CI Owner
+
+  # ===========================================================================
+  # FRONTEND
+  #
+  # Runs "npm test", the second of the two commands in CLAUDE.md, and "npm run
+  # build" alongside it. No database and no Java, because the frontend tests
+  # need neither: they run in jsdom and stub out every request they make.
+  # ===========================================================================
+  frontend:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+
+    # Every "run:" step below happens inside frontend/ instead of the repository
+    # root, which saves repeating a cd on each one. It applies to run: steps
+    # only. The "uses:" steps are unaffected, which is why the cache path a few
+    # lines down is still written from the repository root.
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Pinned to the exact version the frontend-maven-plugin installs during a
+      # Maven build, set in pom.xml. Two different Node versions building the
+      # same frontend is a difference nobody would think to look for.
+      #
+      # cache-dependency-path has to be spelled out because package-lock.json is
+      # not at the repository root, and this step ignores the working-directory
+      # default above.
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ci, not install. "npm ci" installs exactly what package-lock.json pins
+      # and fails if package.json and the lock file disagree. "npm install" would
+      # quietly resolve the difference and update the lock file, which on a
+      # throwaway machine means the versions tested are not the versions pinned.
+      - name: Install the frontend dependencies
+        run: npm ci
+
+      # This is "tsc -b && vite build", so it is the TypeScript compiler as much
+      # as the bundler. Kept ahead of the tests on purpose: a type error is a
+      # more basic failure than a test disagreeing, and it is more useful to be
+      # told about it first.
+      #
+      # It also covers a gap the tests cannot. "npm test" alone would pass on
+      # code that does not compile, because Vitest transforms TypeScript without
+      # type-checking it. Without this line a broken type would sail through the
+      # pull request and only surface later, at the mvnw clean package that
+      # produces the JAR.
+      - name: Build the frontend
+        run: npm run build
+
+      # "vitest run": one pass, then exit with a pass or fail code. Not the
+      # watching mode, which would sit here until the job timed out.
+      - name: Run the frontend tests
+        run: npm test

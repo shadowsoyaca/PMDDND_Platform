@@ -10,10 +10,19 @@ mvnw text eol=lf
 # forces the Windows script to CRLF
 *.cmd text eol=crlf
 
-# Ensures that the committed script keeps Linux line endings, even if the script is edited 
+# Ensures that the committed script keeps Linux line endings, even if the script is edited
 # on Windows. This is important for scripts that are run in a Linux environment, as CRLF line endings can cause issues.
 *.sh text eol=lf
 *.service text eol=lf
+
+# NOTE: Phase 2 Story 4.8 - GitHub Actions workflow files, for the same reason as
+# the two lines above. The "run:" blocks inside a workflow are pulled out and
+# executed as shell commands on a Linux runner, so a carriage return that came
+# from editing on Windows ends up inside the command and bash reports
+# "$'\r': command not found". "* text=auto" at the top already normalises this,
+# so the line is insurance rather than a fix, and it states the intent where
+# someone editing the workflow will see it.
+.github/workflows/*.yml text eol=lf
 
 # Ensures Caddyfile keeps Linux line endings:
 Caddyfile text eol=lf
