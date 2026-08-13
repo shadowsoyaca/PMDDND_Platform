@@ -37,16 +37,16 @@
 	     PROJECT IDENTITY
 
 	     groupId + artifactId + version uniquely name this project. Together they
-	     also decide the built filename: dndplatform-2.4.8.jar
+	     also decide the built filename: dndplatform-2.5.0.jar
 	     ====================================================================== -->
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
 
 	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
 	     identified nothing. The number is now phase.story.child, so this build is
-	     Phase 2 Story 4.8. Bump it on each story branch.
+	     Phase 2 Story 5. Bump it on each story branch.
 
-	     This is what names the built file: target/dndplatform-2.4.8.jar. The
+	     This is what names the built file: target/dndplatform-2.5.0.jar. The
 	     deploy script reads the version back out of that filename, so this is the
 	     single place the version is set.
 
@@ -58,7 +58,7 @@
 	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
 	     you", which is the wrong thing to say about a build you deploy and might
 	     later roll back to. -->
-	<version>2.4.8</version>
+	<version>2.5.0</version>
 
 	<!-- ======================================================================
 	     PROJECT METADATA
