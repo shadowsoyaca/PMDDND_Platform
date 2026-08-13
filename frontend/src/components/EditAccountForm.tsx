@@ -68,6 +68,13 @@ export default function EditAccountForm({
         try {
             const result = await updatePersonName(account.id, personName.trim());
 
+            /* The session ended. See AddAccountForm for why this leaves rather
+             * than showing a message. */
+            if (result.kind === "noSession") {
+                window.location.href = "/login";
+                return;
+            }
+
             if (result.kind === "error") {
                 setError(result.message);
                 return;

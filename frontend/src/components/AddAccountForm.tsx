@@ -106,6 +106,21 @@ export default function AddAccountForm({
                 personName: personName.trim(),
             });
 
+            /*
+             * The session ended while this form was open. Nothing typed here can
+             * succeed until they sign in again, so showing a message and leaving
+             * the form open would only invite them to press the button a second
+             * time and be refused again.
+             *
+             * The exit is a full browser navigation rather than a router one, so
+             * the half-filled form is thrown away with the page. A password is
+             * sitting in it.
+             */
+            if (result.kind === "noSession") {
+                window.location.href = "/login";
+                return;
+            }
+
             if (result.kind === "error") {
                 setError(result.message);
                 return;

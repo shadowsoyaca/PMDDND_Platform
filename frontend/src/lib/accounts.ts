@@ -121,10 +121,53 @@ export async function fetchAccounts(): Promise<AccountsResult> {
 /* What a change produced: the updated account, or something to show the person. */
 export type ChangeResult =
     | { kind: "ok"; account: Account }
+    | { kind: "noSession" }
     | { kind: "error"; message: string };
 
 /* The same, for removal, which answers with no content when it works. */
-export type RemoveResult = { kind: "ok" } | { kind: "error"; message: string };
+export type RemoveResult =
+    | { kind: "ok" }
+    | { kind: "noSession" }
+    | { kind: "error"; message: string };
+
+/*
+ * Was that answer the login page rather than a real answer?
+ *
+ * response - what came back from a request that changes something.
+ *
+ * Returns true when the session has ended and Spring bounced the request to the
+ * login screen.
+ *
+ * WHY THIS IS NEEDED AT ALL
+ *
+ * A request made with no session is answered with a redirect to the login page.
+ * fetch follows that redirect by itself and does not report having done so, so
+ * what arrives is the login page's HTML carrying a status of 200. Every check
+ * that asks whether the answer succeeded says yes.
+ *
+ * That was not merely theoretical here. Before this check existed, removing an
+ * account with an expired session reported success and took the row out of the
+ * table while the account stayed in the database, and adding or editing showed
+ * "could not reach the server" for a server that had answered perfectly well.
+ * The same trap has now caused three separate faults in this project, all
+ * recorded in LIVING_DOC.md.
+ *
+ * WHY THE CONTENT TYPE AND NOT response.redirected
+ *
+ * fetch does set redirected to true in a real browser, and it would be the more
+ * direct signal. It cannot be set on a Response built by hand, so no test could
+ * produce the situation, and an untestable guard against a fault that has
+ * happened three times is not worth having.
+ *
+ * A successful delete answers 204 with no content type at all, so it does not
+ * match this and is not mistaken for a bounce.
+ */
+function isLoginBounce(response: Response): boolean {
+    return (
+        response.ok &&
+        (response.headers.get("content-type")?.includes("text/html") ?? false)
+    );
+}
 
 const UNEXPECTED = "Something went wrong. Please try again.";
 const NOT_ALLOWED = "You do not have permission to do that.";
@@ -174,6 +217,9 @@ export async function createAccount(details: {
 }): Promise<ChangeResult> {
     const response = await fetch("/api/admin/users", changeRequest("POST", details));
 
+    if (isLoginBounce(response)) {
+        return { kind: "noSession" };
+    }
     if (response.status === 409) {
         return { kind: "error", message: "That username is already taken." };
     }
@@ -213,6 +259,9 @@ export async function updatePersonName(
         changeRequest("PUT", { personName }),
     );
 
+    if (isLoginBounce(response)) {
+        return { kind: "noSession" };
+    }
     if (response.status === 400) {
         return { kind: "error", message: "That name was not accepted." };
     }
@@ -246,6 +295,15 @@ export async function updatePersonName(
 export async function deleteAccount(id: number): Promise<RemoveResult> {
     const response = await fetch(`/api/admin/users/${id}`, changeRequest("DELETE"));
 
+    /*
+     * First, and it matters most here. This is the call where a bounce mistaken
+     * for success is worst: the screen takes the row out of the table and the
+     * account is still there, so the owner is told a permanent action happened
+     * when it did not.
+     */
+    if (isLoginBounce(response)) {
+        return { kind: "noSession" };
+    }
     if (response.status === 409) {
         return {
             kind: "error",

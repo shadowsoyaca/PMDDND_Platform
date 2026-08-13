@@ -51,6 +51,17 @@ export default function RemoveAccountConfirm({
         try {
             const result = await deleteAccount(account.id);
 
+            /*
+             * The session ended, so nothing was removed. Leaving for the login
+             * screen is the only honest answer: the alternative that used to
+             * happen here was taking the row out of the table and reporting a
+             * deletion that never took place.
+             */
+            if (result.kind === "noSession") {
+                window.location.href = "/login";
+                return;
+            }
+
             if (result.kind === "error") {
                 setError(result.message);
                 return;
