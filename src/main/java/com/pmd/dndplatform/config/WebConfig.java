@@ -61,5 +61,23 @@ public class WebConfig implements WebMvcConfigurer {
         // The login screen. This is the address SecurityConfig sends logged-out
         // visitors to, and the address its loginPage setting names.
         registry.addViewController("/login").setViewName("forward:/index.html");
+
+        /*
+         * NOTE - Phase 2 Story 5: the account table.
+         *
+         * There is deliberately no OWNER rule to go with this line, and that is
+         * worth understanding rather than looking like an oversight.
+         *
+         * This only makes the address serve the React app. What the screen is
+         * then allowed to show is decided when it asks for the account data, and
+         * SecurityConfig refuses that to anyone who is not the owner. So a player
+         * who types this address in reaches a screen that tells them they cannot
+         * see it, and no account data ever leaves the server.
+         *
+         * Protecting the address itself as well would only change the wording of
+         * the refusal, while adding a second place where the rule lives. Two
+         * copies of one rule is how they end up disagreeing.
+         */
+        registry.addViewController("/accounts").setViewName("forward:/index.html");
     }
 }
