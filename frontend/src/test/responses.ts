@@ -63,3 +63,19 @@ export function htmlResponse(): Response {
 export function emptyResponse(): Response {
     return new Response(null, { status: 200 });
 }
+
+/*
+ * NOTE - Phase 2 Story 5: a refusal, status 403.
+ *
+ * This is what a signed-in player gets from anything under /api/admin/. It is
+ * the third distinct answer a screen has to cope with, and the one most easily
+ * confused with the second: like the HTML bounce above it is not an ok response,
+ * so code that checks response.ok first treats a refused player as a signed-out
+ * visitor and sends them to a login screen they have already passed.
+ *
+ * The body is deliberately empty rather than JSON. Spring answers this way, and a
+ * screen that tried to read a message out of it would find nothing.
+ */
+export function forbiddenResponse(): Response {
+    return new Response(null, { status: 403 });
+}

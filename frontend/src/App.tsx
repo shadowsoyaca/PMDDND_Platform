@@ -29,6 +29,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "@/pages/LoginPage";
 import HomePage from "@/pages/HomePage";
+// NOTE: Phase 2 Story 5 - the account table.
+import AccountsPage from "@/pages/AccountsPage";
 
 export default function App() {
     return (
@@ -36,6 +38,20 @@ export default function App() {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/" element={<HomePage />} />
+
+                {/*
+                 * NOTE: Phase 2 Story 5 - the account table. The matching
+                 * WebConfig line is already in place, so this address survives
+                 * being typed in or reloaded.
+                 *
+                 * There is no owner-only wrapper around this route on purpose.
+                 * Any signed-in person can reach the screen; the screen asks the
+                 * server for the accounts and draws the refusal when it is turned
+                 * down. Deciding it here instead would mean the browser judging
+                 * its own permissions, which is a judgement it cannot be trusted
+                 * to make.
+                 */}
+                <Route path="/accounts" element={<AccountsPage />} />
 
                 {/*
                  * Anything else goes to the home page. This is a safety net
