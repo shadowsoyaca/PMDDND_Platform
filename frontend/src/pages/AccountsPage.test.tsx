@@ -348,6 +348,38 @@ describe("AccountsPage", () => {
         expect(screen.queryByRole("form", { name: "Add a new account" })).not.toBeInTheDocument();
     });
 
+    it("shows a new account even when a search was hiding everything else", async () => {
+        const user = userEvent.setup();
+        serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        /*
+         * A search narrow enough that the new account cannot match it. Without
+         * the search being cleared, the row is added and stays invisible, which
+         * reads as the add having silently failed.
+         */
+        await user.type(screen.getByLabelText("Search"), "misty");
+        expect(usernamesInOrder()).toEqual(["misty"]);
+
+        await user.click(screen.getByRole("button", { name: "Add account" }));
+        await user.type(screen.getByLabelText("Username"), "brock");
+        await user.type(screen.getByLabelText("Name"), "Brock Harrison");
+        await user.type(screen.getByLabelText("Password"), "rocksolid1");
+        await user.click(screen.getByRole("button", { name: "Create account" }));
+
+        await waitFor(() =>
+            expect(usernamesInOrder()).toEqual([
+                "ashketchum",
+                "brock",
+                "misty",
+                "owner",
+            ]),
+        );
+        expect(screen.getByLabelText("Search")).toHaveValue("");
+    });
+
     it("says the username is taken when the server refuses it, and adds nothing", async () => {
         const user = userEvent.setup();
         serveAccounts({ create: conflictResponse() });

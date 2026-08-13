@@ -178,6 +178,20 @@ export default function AccountsPage() {
     function handleCreated(account: Account) {
         setAccounts((existing) => [...existing, account]);
         setOpenForm({ kind: "none" });
+
+        /*
+         * Clear the search, or the account just created may not be on screen.
+         *
+         * The search narrows the table, and a new account has no reason to match
+         * whatever was typed there earlier. Without this, creating an account
+         * while a search is active adds a row nobody can see, which reads as the
+         * add having silently failed.
+         *
+         * Only creating does this. Editing does not, because that row was
+         * already on screen, and removing does not, because a row disappearing
+         * is what was asked for.
+         */
+        setQuery("");
     }
 
     function handleSaved(saved: Account) {
