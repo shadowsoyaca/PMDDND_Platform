@@ -21,6 +21,7 @@
  *
  * Collapsing any two of those loses information the person needs.
  */
+import { readCsrfToken } from "@/lib/csrf";
 
 /*
  * One account, exactly as UserSummary sends it.
@@ -92,4 +93,172 @@ export async function fetchAccounts(): Promise<AccountsResult> {
     }
 
     return { kind: "ok", accounts: (await response.json()) as Account[] };
+}
+
+/*
+ * -----------------------------------------------------------------------------
+ * Changing things
+ * -----------------------------------------------------------------------------
+ *
+ * WHY THESE WRITE THEIR OWN ERROR MESSAGES
+ *
+ * The server has good wording for every refusal. "That username is already
+ * taken." is written out in UserAdminService. None of it arrives here.
+ *
+ * Spring only puts an exception's message into the error body when
+ * server.error.include-message is set to always, and it is deliberately not set,
+ * because that setting applies to every error at once and would start sending
+ * internal exception text to the browser for faults that have nothing to do with
+ * a form. So what arrives is a status code and an empty message.
+ *
+ * The wording below therefore duplicates the server's, and the duplication is
+ * worth naming rather than hiding: if the rule on the server changes, the message
+ * here does not follow it on its own. What stops the two drifting silently is
+ * that each message is tied to a status code rather than to a sentence, and the
+ * status codes are covered by UserAdminTest.
+ */
+
+/* What a change produced: the updated account, or something to show the person. */
+export type ChangeResult =
+    | { kind: "ok"; account: Account }
+    | { kind: "error"; message: string };
+
+/* The same, for removal, which answers with no content when it works. */
+export type RemoveResult = { kind: "ok" } | { kind: "error"; message: string };
+
+const UNEXPECTED = "Something went wrong. Please try again.";
+const NOT_ALLOWED = "You do not have permission to do that.";
+
+/*
+ * Builds the request options for a call that changes something.
+ *
+ * method - POST, PUT or DELETE.
+ * body   - the object to send, or nothing for a DELETE.
+ *
+ * Returns options ready to hand to fetch.
+ *
+ * The CSRF token is read here, at the moment of sending, rather than held
+ * anywhere. LIVING_DOC.md records what happens when a token is stored and reused:
+ * sign out failed roughly half the time because a redraw had wiped it.
+ */
+function changeRequest(method: string, body?: unknown): RequestInit {
+    return {
+        method,
+        headers: {
+            "Content-Type": "application/json",
+            "X-XSRF-TOKEN": readCsrfToken(),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    };
+}
+
+/*
+ * Creates an account. Every account made this way is a PLAYER; the server does
+ * not accept a role and will not be told one.
+ *
+ * details - the username, password and person name typed into the add form.
+ *
+ * Returns the created account, or a message explaining the refusal.
+ *
+ * Raises whatever fetch raises when the request gets no answer at all.
+ *
+ * 409 is the one worth handling by name. It means the request was perfectly well
+ * formed and simply collides with an account that already exists, which is a
+ * thing the person can fix by choosing another username, so it deserves a
+ * sentence saying exactly that rather than a general failure.
+ */
+export async function createAccount(details: {
+    username: string;
+    password: string;
+    personName: string;
+}): Promise<ChangeResult> {
+    const response = await fetch("/api/admin/users", changeRequest("POST", details));
+
+    if (response.status === 409) {
+        return { kind: "error", message: "That username is already taken." };
+    }
+    if (response.status === 400) {
+        return {
+            kind: "error",
+            message: "Those details were not accepted. Check them and try again.",
+        };
+    }
+    if (response.status === 403) {
+        return { kind: "error", message: NOT_ALLOWED };
+    }
+    if (!response.ok) {
+        return { kind: "error", message: UNEXPECTED };
+    }
+
+    return { kind: "ok", account: (await response.json()) as Account };
+}
+
+/*
+ * Changes an account's person name. Nothing else about the account is touched,
+ * and nothing else can be: the server accepts only this one field.
+ *
+ * id         - which account.
+ * personName - the corrected name.
+ *
+ * Returns the updated account, or a message explaining the refusal.
+ *
+ * Raises whatever fetch raises when the request gets no answer at all.
+ */
+export async function updatePersonName(
+    id: number,
+    personName: string,
+): Promise<ChangeResult> {
+    const response = await fetch(
+        `/api/admin/users/${id}`,
+        changeRequest("PUT", { personName }),
+    );
+
+    if (response.status === 400) {
+        return { kind: "error", message: "That name was not accepted." };
+    }
+    if (response.status === 403) {
+        return { kind: "error", message: NOT_ALLOWED };
+    }
+    if (!response.ok) {
+        return { kind: "error", message: UNEXPECTED };
+    }
+
+    return { kind: "ok", account: (await response.json()) as Account };
+}
+
+/*
+ * Removes an account. This is permanent and takes everything attached to the
+ * account with it.
+ *
+ * id - which account.
+ *
+ * Returns nothing on success, or a message explaining the refusal.
+ *
+ * Raises whatever fetch raises when the request gets no answer at all.
+ *
+ * The 409 case should be unreachable from this screen, because the two things the
+ * server refuses are removing your own account and removing the last owner, and
+ * the screen offers no remove button on the owner's own row. It is handled anyway
+ * rather than left to fall through to "something went wrong", because a guard
+ * that is never supposed to fire is exactly the one nobody can interpret when it
+ * does.
+ */
+export async function deleteAccount(id: number): Promise<RemoveResult> {
+    const response = await fetch(`/api/admin/users/${id}`, changeRequest("DELETE"));
+
+    if (response.status === 409) {
+        return {
+            kind: "error",
+            message:
+                "That account cannot be removed. It is either your own or the last owner account.",
+        };
+    }
+    if (response.status === 403) {
+        return { kind: "error", message: NOT_ALLOWED };
+    }
+    if (!response.ok) {
+        return { kind: "error", message: UNEXPECTED };
+    }
+
+    return { kind: "ok" };
 }

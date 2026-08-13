@@ -30,6 +30,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import AddAccountForm from "@/components/AddAccountForm";
+import EditAccountForm from "@/components/EditAccountForm";
+import RemoveAccountConfirm from "@/components/RemoveAccountConfirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +46,8 @@ import {
 } from "@/components/ui/table";
 import { fetchAccounts } from "@/lib/accounts";
 import type { Account } from "@/lib/accounts";
+import { fetchCurrentUser } from "@/lib/currentUser";
+import type { CurrentUser } from "@/lib/currentUser";
 
 /*
  * The columns that can be sorted, which is every column shown.
@@ -85,9 +90,28 @@ function formatCreated(value: string): string {
 /* What the screen is currently able to show. */
 type ScreenState = "loading" | "ready" | "refused" | "failed";
 
+/*
+ * Which form, if any, is open above the table.
+ *
+ * One value rather than three separate flags, so that two forms cannot be open
+ * at once. Three booleans allow eight combinations, six of which are nonsense,
+ * and closing one while opening another becomes something to remember rather
+ * than something the shape of the value prevents.
+ *
+ * The account travels inside the value for the two forms that need one, which
+ * means there is no way to be editing while holding nothing to edit.
+ */
+type OpenForm =
+    | { kind: "none" }
+    | { kind: "add" }
+    | { kind: "edit"; account: Account }
+    | { kind: "remove"; account: Account };
+
 export default function AccountsPage() {
     const [accounts, setAccounts] = useState<Account[]>([]);
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [state, setState] = useState<ScreenState>("loading");
+    const [openForm, setOpenForm] = useState<OpenForm>({ kind: "none" });
 
     const [query, setQuery] = useState("");
     const [sortColumn, setSortColumn] = useState<keyof Account>("username");
@@ -104,12 +128,18 @@ export default function AccountsPage() {
     useEffect(() => {
         let cancelled = false;
 
-        fetchAccounts()
-            .then((result) => {
+        /*
+         * Both requests go out together rather than one after the other. They do
+         * not depend on each other, and the screen cannot be drawn without both:
+         * the accounts fill the table, and knowing who is signed in is what
+         * decides which row must not offer a remove button.
+         */
+        Promise.all([fetchAccounts(), fetchCurrentUser()])
+            .then(([result, me]) => {
                 if (cancelled) {
                     return;
                 }
-                if (result.kind === "noSession") {
+                if (result.kind === "noSession" || !me) {
                     window.location.href = "/login";
                     return;
                 }
@@ -118,6 +148,7 @@ export default function AccountsPage() {
                     return;
                 }
                 setAccounts(result.accounts);
+                setCurrentUser(me);
                 setState("ready");
             })
             .catch(() => {
@@ -130,6 +161,36 @@ export default function AccountsPage() {
             cancelled = true;
         };
     }, []);
+
+    /*
+     * The three things that happen after a change succeeds.
+     *
+     * Each one adjusts the list already held rather than asking the server for
+     * the whole table again. The endpoints answer with the account they created
+     * or changed, so the correct values are already here, and a second request
+     * would throw away the current search text and sort order for no gain.
+     *
+     * The one thing this gives up is noticing a change made somewhere else while
+     * this screen was open. There is one owner and one screen, so there is
+     * nowhere else for a change to come from. Should that stop being true, this
+     * is the decision to revisit.
+     */
+    function handleCreated(account: Account) {
+        setAccounts((existing) => [...existing, account]);
+        setOpenForm({ kind: "none" });
+    }
+
+    function handleSaved(saved: Account) {
+        setAccounts((existing) =>
+            existing.map((account) => (account.id === saved.id ? saved : account)),
+        );
+        setOpenForm({ kind: "none" });
+    }
+
+    function handleRemoved(id: number) {
+        setAccounts((existing) => existing.filter((account) => account.id !== id));
+        setOpenForm({ kind: "none" });
+    }
 
     /*
      * Narrows the table to what was searched for, then puts it in order.
@@ -242,10 +303,59 @@ export default function AccountsPage() {
 
                 <div className="mb-6 flex items-center justify-between gap-4">
                     <h1 className="text-2xl font-bold text-slate-800">Accounts</h1>
-                    <Button asChild variant="outline">
-                        <Link to="/">Back</Link>
-                    </Button>
+                    <div className="flex gap-3">
+                        {/*
+                          * Hidden while the add form is open, so there is no
+                          * button that appears to do nothing because the thing it
+                          * opens is already on the screen.
+                          */}
+                        {openForm.kind !== "add" && (
+                            <Button onClick={() => setOpenForm({ kind: "add" })}>
+                                Add account
+                            </Button>
+                        )}
+                        <Button asChild variant="outline">
+                            <Link to="/">Back</Link>
+                        </Button>
+                    </div>
                 </div>
+
+                {/*
+                  * The forms sit above the table rather than over it. Only one can
+                  * be open, which the shape of openForm guarantees rather than
+                  * this markup remembering to.
+                  *
+                  * Each form is given a key of the account it is working on. That
+                  * tells React to build a fresh form when a different account is
+                  * chosen, instead of reusing the one on screen. Without it,
+                  * pressing edit on a second row while the first form is open
+                  * would keep the first name in the box, because the box's
+                  * contents belong to the form rather than to the account.
+                  */}
+                {openForm.kind === "add" && (
+                    <AddAccountForm
+                        onCreated={handleCreated}
+                        onCancel={() => setOpenForm({ kind: "none" })}
+                    />
+                )}
+
+                {openForm.kind === "edit" && (
+                    <EditAccountForm
+                        key={openForm.account.id}
+                        account={openForm.account}
+                        onSaved={handleSaved}
+                        onCancel={() => setOpenForm({ kind: "none" })}
+                    />
+                )}
+
+                {openForm.kind === "remove" && (
+                    <RemoveAccountConfirm
+                        key={openForm.account.id}
+                        account={openForm.account}
+                        onRemoved={handleRemoved}
+                        onCancel={() => setOpenForm({ kind: "none" })}
+                    />
+                )}
 
                 <div className="mb-6 max-w-sm space-y-2">
                     <Label htmlFor="search" className="text-slate-700">
@@ -317,6 +427,16 @@ export default function AccountsPage() {
                                     </button>
                                 </TableHead>
                             ))}
+
+                            {/*
+                              * The actions column carries no data, so there is
+                              * nothing to sort it by and no button in its
+                              * heading. It is still given a visible heading
+                              * rather than left blank, because an empty heading
+                              * cell is announced as nothing at all and leaves a
+                              * screen reader user with two unexplained buttons.
+                              */}
+                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
 
@@ -335,6 +455,53 @@ export default function AccountsPage() {
                                 <TableCell className="text-slate-600">
                                     {formatCreated(account.createdAt)}
                                 </TableCell>
+
+                                <TableCell>
+                                    <div className="flex gap-2">
+                                        {/*
+                                          * The visible word is Edit, and the
+                                          * accessible name says which account.
+                                          * Five buttons all called Edit tell
+                                          * someone using a screen reader nothing
+                                          * about which row they are on, and the
+                                          * tests read the same names, so a button
+                                          * on the wrong row cannot pass.
+                                          */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            aria-label={`Edit ${account.username}`}
+                                            onClick={() =>
+                                                setOpenForm({ kind: "edit", account })
+                                            }
+                                        >
+                                            Edit
+                                        </Button>
+
+                                        {/*
+                                          * No remove button on your own row.
+                                          *
+                                          * The server refuses this as well, and
+                                          * that refusal is the one that counts.
+                                          * Leaving the button there and letting
+                                          * the server say no would mean offering
+                                          * an action that never works, which
+                                          * reads as a fault.
+                                          */}
+                                        {account.username !== currentUser?.username && (
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                aria-label={`Remove ${account.username}`}
+                                                onClick={() =>
+                                                    setOpenForm({ kind: "remove", account })
+                                                }
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                </TableCell>
                             </TableRow>
                         ))}
 
@@ -346,7 +513,7 @@ export default function AccountsPage() {
                         {visibleAccounts.length === 0 && (
                             <TableRow>
                                 <TableCell
-                                    colSpan={COLUMNS.length}
+                                    colSpan={COLUMNS.length + 1}
                                     className="py-6 text-center text-slate-600"
                                 >
                                     No accounts match that search.

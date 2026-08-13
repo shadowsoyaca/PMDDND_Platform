@@ -79,3 +79,42 @@ export function emptyResponse(): Response {
 export function forbiddenResponse(): Response {
     return new Response(null, { status: 403 });
 }
+
+/*
+ * NOTE - Phase 2 Story 5: a thing was created, status 201.
+ *
+ * body - the created object, as the endpoint would answer with it.
+ *
+ * Separate from jsonResponse because the status really is different, and a test
+ * that answers 200 where the server answers 201 is quietly agreeing with itself
+ * rather than with the backend.
+ */
+export function createdResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+    });
+}
+
+/*
+ * NOTE - Phase 2 Story 5: done, with nothing to say. Status 204.
+ *
+ * What a successful delete answers with. There is no body at all, which is worth
+ * having in a test: code that tries to read one finds nothing and fails here
+ * rather than in front of the owner.
+ */
+export function noContentResponse(): Response {
+    return new Response(null, { status: 204 });
+}
+
+/*
+ * NOTE - Phase 2 Story 5: a collision, status 409.
+ *
+ * What creating an account with a taken username answers with. The body is empty
+ * on purpose. The server does write a reason, and Spring does not send it, since
+ * server.error.include-message is left at its default. So the screen has to
+ * supply its own wording, and this is the answer that proves it does.
+ */
+export function conflictResponse(): Response {
+    return new Response(null, { status: 409 });
+}
