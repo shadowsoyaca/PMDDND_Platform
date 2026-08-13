@@ -23,8 +23,26 @@ public record CreateUserRequest(
         @Size(min = 3, max = 50, message = "Username must be 3 to 50 characters.")
         String username,
 
+        /*
+         * NOTE: Phase 2 Story 5 - the maximum was 100 and is now 68.
+         *
+         * BCrypt hashes the first 72 BYTES of a password and ignores everything
+         * after them. A longer password is not refused and does not fail; its
+         * tail simply does nothing, so two passwords sharing their first 72 bytes
+         * open the same account. Accepting 100 characters was therefore promising
+         * something that was not true.
+         *
+         * 68 rather than 72, to leave room for a few characters that take more
+         * than one byte, such as an accented letter. It is not a guarantee: 68
+         * emoji are 272 bytes and would still be cut. That case is left alone on
+         * purpose, because the result is a very long password whose end is
+         * ignored rather than anything that breaks.
+         *
+         * Existing accounts are unaffected. This limits what may be sent in, and
+         * the stored hash is 60 characters whatever the password was.
+         */
         @NotBlank(message = "Password is required.")
-        @Size(min = 8, max = 100, message = "Password must be at least 8 characters.")
+        @Size(min = 8, max = 68, message = "Password must be 8 to 68 characters.")
         String password,
 
         @NotBlank(message = "Person name is required.")

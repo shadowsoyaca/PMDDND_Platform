@@ -39,6 +39,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
 import AccountsPage from "@/pages/AccountsPage";
+import { ACCOUNT_LIMITS } from "@/lib/accounts";
 import {
     conflictResponse,
     createdResponse,
@@ -430,6 +431,72 @@ describe("AccountsPage", () => {
          * vaguer way of saying the same thing.
          */
         expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    });
+
+    it("refuses a password longer than BCrypt actually reads, without sending anything", async () => {
+        const user = userEvent.setup();
+        const fetchMock = serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Add account" }));
+        await user.type(screen.getByLabelText("Username"), "brock");
+        await user.type(screen.getByLabelText("Name"), "Brock Harrison");
+        await user.click(screen.getByLabelText("Password"));
+        await user.paste("p".repeat(ACCOUNT_LIMITS.passwordMax + 1));
+        await user.click(screen.getByRole("button", { name: "Create account" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            `Password must be ${ACCOUNT_LIMITS.passwordMax} characters or fewer.`,
+        );
+        expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    });
+
+    it("refuses a name longer than the server allows, without sending anything", async () => {
+        const user = userEvent.setup();
+        const fetchMock = serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Add account" }));
+        await user.type(screen.getByLabelText("Username"), "brock");
+        /*
+         * One character past the server's limit. Pasted rather than typed, since
+         * typing 101 characters one at a time is slow enough to be noticed in the
+         * test run.
+         */
+        await user.click(screen.getByLabelText("Name"));
+        await user.paste("B".repeat(ACCOUNT_LIMITS.personNameMax + 1));
+        await user.type(screen.getByLabelText("Password"), "rocksolid1");
+        await user.click(screen.getByRole("button", { name: "Create account" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            `Name must be ${ACCOUNT_LIMITS.personNameMax} characters or fewer.`,
+        );
+        expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    });
+
+    it("refuses a name longer than the server allows on the edit form too", async () => {
+        const user = userEvent.setup();
+        const fetchMock = serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Edit misty" }));
+
+        const nameBox = screen.getByLabelText("Name");
+        await user.clear(nameBox);
+        await user.click(nameBox);
+        await user.paste("M".repeat(ACCOUNT_LIMITS.personNameMax + 1));
+        await user.click(screen.getByRole("button", { name: "Save name" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            `Name must be ${ACCOUNT_LIMITS.personNameMax} characters or fewer.`,
+        );
+        expect(fetchMock.mock.calls.some((call) => call[1]?.method === "PUT")).toBe(false);
     });
 
     it("offers no way to set a role, a username other than the login name, or a created date", async () => {

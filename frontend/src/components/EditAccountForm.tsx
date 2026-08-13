@@ -24,7 +24,7 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { updatePersonName } from "@/lib/accounts";
+import { ACCOUNT_LIMITS, updatePersonName } from "@/lib/accounts";
 import type { Account } from "@/lib/accounts";
 
 /*
@@ -59,6 +59,15 @@ export default function EditAccountForm({
 
         if (personName.trim().length === 0) {
             setError("A name is required.");
+            return;
+        }
+        /*
+         * The same limit the add form applies, from the same place, because the
+         * server applies it to both and would answer a longer one with a bare
+         * 400 that this form could only describe vaguely.
+         */
+        if (personName.trim().length > ACCOUNT_LIMITS.personNameMax) {
+            setError(`Name must be ${ACCOUNT_LIMITS.personNameMax} characters or fewer.`);
             return;
         }
 

@@ -30,13 +30,8 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createAccount } from "@/lib/accounts";
+import { ACCOUNT_LIMITS, createAccount } from "@/lib/accounts";
 import type { Account } from "@/lib/accounts";
-
-/* The same limits CreateUserRequest applies on the server. */
-const USERNAME_MIN = 3;
-const USERNAME_MAX = 50;
-const PASSWORD_MIN = 8;
 
 /*
  * onCreated - called with the new account once the server has made it, so the
@@ -66,17 +61,31 @@ export default function AddAccountForm({
      * which reads as the form having ignored the correction.
      */
     function findProblem(): string {
-        if (username.trim().length < USERNAME_MIN) {
-            return `Username must be at least ${USERNAME_MIN} characters.`;
+        if (username.trim().length < ACCOUNT_LIMITS.usernameMin) {
+            return `Username must be at least ${ACCOUNT_LIMITS.usernameMin} characters.`;
         }
-        if (username.trim().length > USERNAME_MAX) {
-            return `Username must be ${USERNAME_MAX} characters or fewer.`;
+        if (username.trim().length > ACCOUNT_LIMITS.usernameMax) {
+            return `Username must be ${ACCOUNT_LIMITS.usernameMax} characters or fewer.`;
         }
-        if (password.length < PASSWORD_MIN) {
-            return `Password must be at least ${PASSWORD_MIN} characters.`;
+        if (password.length < ACCOUNT_LIMITS.passwordMin) {
+            return `Password must be at least ${ACCOUNT_LIMITS.passwordMin} characters.`;
+        }
+        /*
+         * The password's upper limit is the one nobody expects a form to have,
+         * and it is not arbitrary. BCrypt hashes the first 72 bytes and ignores
+         * everything after them, so a longer password has a tail that does
+         * nothing at all. Refusing it here is honest; accepting it would promise
+         * something untrue. A password manager generating a very long one is
+         * exactly the case where that would go unnoticed.
+         */
+        if (password.length > ACCOUNT_LIMITS.passwordMax) {
+            return `Password must be ${ACCOUNT_LIMITS.passwordMax} characters or fewer.`;
         }
         if (personName.trim().length === 0) {
             return "A name is required.";
+        }
+        if (personName.trim().length > ACCOUNT_LIMITS.personNameMax) {
+            return `Name must be ${ACCOUNT_LIMITS.personNameMax} characters or fewer.`;
         }
         return "";
     }

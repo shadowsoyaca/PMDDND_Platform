@@ -44,6 +44,36 @@ export type Account = {
 };
 
 /*
+ * The limits the server enforces on what an account may hold.
+ *
+ * These are copies. The originals are the annotations on CreateUserRequest and
+ * UpdateUserRequest, and those are the ones that decide, because the browser can
+ * be edited by whoever is holding it and the server cannot.
+ *
+ * CHANGE ONE, CHANGE THE OTHER. If these drift, the symptom is not an error but
+ * something worse: a form that accepts what it should refuse, sends it, and gets
+ * back a bare 400 that it can only describe vaguely, because Spring does not send
+ * the reason. Nothing fails loudly. Someone simply cannot work out why the form
+ * will not take a name.
+ *
+ * They are here rather than inside a form because two forms need the same
+ * numbers, and a limit written out twice is a limit that will eventually be
+ * changed once.
+ */
+export const ACCOUNT_LIMITS = {
+    usernameMin: 3,
+    usernameMax: 50,
+    passwordMin: 8,
+    /*
+     * 68, not 100. BCrypt hashes the first 72 bytes of a password and ignores
+     * the rest, so a longer one has a tail that does nothing. CreateUserRequest
+     * carries the full explanation.
+     */
+    passwordMax: 68,
+    personNameMax: 100,
+};
+
+/*
  * What asking for the accounts produced.
  *
  * A tagged shape rather than "a list or null", so that a caller cannot forget one
