@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ACCOUNT_LIMITS, createAccount } from "@/lib/accounts";
+import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 import type { Account } from "@/lib/accounts";
 
 /*
@@ -148,8 +149,12 @@ export default function AddAccountForm({
             }
 
             onCreated(result.account);
-        } catch {
-            setError("Could not reach the server. Please try again.");
+        } catch (failure) {
+            setError(
+                isTimeout(failure)
+                    ? `${TIMEOUT_MESSAGE} Please try again.`
+                    : "Could not reach the server. Please try again.",
+            );
         } finally {
             /*
              * Runs even when onCreated has already closed the form. Setting state

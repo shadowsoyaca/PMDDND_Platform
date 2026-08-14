@@ -57,6 +57,7 @@ import badge from "@/assets/badge.png";
  */
 import { readCsrfToken } from "@/lib/csrf";
 import { fetchCurrentUser } from "@/lib/currentUser";
+import { fetchWithTimeout, isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -100,7 +101,7 @@ export default function LoginPage() {
             body.set("username", username);
             body.set("password", password);
 
-            await fetch("/login", {
+            await fetchWithTimeout("/login", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -133,8 +134,19 @@ export default function LoginPage() {
             }
 
             setError("That username and password did not match. Please try again.");
-        } catch {
-            setError("Could not reach the server. Please try again.");
+        } catch (failure) {
+            /*
+             * NOTE - Phase 2 Story 5: a request that ran out of time is now told
+             * apart from one that never connected. They are different faults and
+             * they lead to different next steps: one means the server is not
+             * there, the other means it is there and struggling, and trying again
+             * shortly is reasonable.
+             */
+            setError(
+                isTimeout(failure)
+                    ? `${TIMEOUT_MESSAGE} Please try again.`
+                    : "Could not reach the server. Please try again.",
+            );
         } finally {
             setSubmitting(false);
         }

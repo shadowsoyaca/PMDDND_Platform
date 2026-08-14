@@ -48,6 +48,7 @@ import { fetchAccounts } from "@/lib/accounts";
 import type { Account } from "@/lib/accounts";
 import { fetchCurrentUser } from "@/lib/currentUser";
 import type { CurrentUser } from "@/lib/currentUser";
+import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 
 /*
  * The columns that can be sorted, which is every column shown.
@@ -112,6 +113,8 @@ export default function AccountsPage() {
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [state, setState] = useState<ScreenState>("loading");
     const [openForm, setOpenForm] = useState<OpenForm>({ kind: "none" });
+    /* What to say when loading failed. See HomePage for why this is text. */
+    const [failure, setFailure] = useState("Could not load the accounts.");
 
     const [query, setQuery] = useState("");
     const [sortColumn, setSortColumn] = useState<keyof Account>("username");
@@ -151,8 +154,11 @@ export default function AccountsPage() {
                 setCurrentUser(me);
                 setState("ready");
             })
-            .catch(() => {
+            .catch((problem) => {
                 if (!cancelled) {
+                    if (isTimeout(problem)) {
+                        setFailure(TIMEOUT_MESSAGE);
+                    }
                     setState("failed");
                 }
             });
@@ -301,7 +307,7 @@ export default function AccountsPage() {
             <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-100 p-8">
                 <div className="w-[min(90vw,28rem)] rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                     <p role="alert" className="mb-6 text-red-800">
-                        Could not load the accounts.
+                        {failure}
                     </p>
                     <Button asChild variant="outline">
                         <Link to="/">Back to your home page</Link>

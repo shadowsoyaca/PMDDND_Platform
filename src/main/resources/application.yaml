@@ -38,6 +38,23 @@ server:
   address: 127.0.0.1
   servlet:
     session:
+      # NOTE: Phase 2 Story 5 - the idle timeout, set here rather than inherited.
+      #
+      # Spring's default is also 30 minutes, so this changes nothing today. It is
+      # written down because an inherited default is not a decision: nobody can
+      # tell from the code whether 30 minutes was chosen or simply never
+      # considered, and a later Spring Boot version could change it underneath us
+      # with nothing here to notice.
+      #
+      # This is idle time, not total time. The clock restarts on every request, so
+      # somebody using the platform is never signed out mid-use. It ends sessions
+      # left open on a machine and walked away from, which is the same risk the
+      # sign out button exists for.
+      #
+      # WORTH REVISITING when real play starts. A group reading through a scene
+      # without touching the screen for half an hour would be signed out, and at
+      # that point the right value is a measured one rather than this.
+      timeout: 30m
       cookie:
         # Stops browser JavaScript from reading the login cookie, so a script
         # slipped onto a page cannot steal the session.

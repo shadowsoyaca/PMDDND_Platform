@@ -22,6 +22,10 @@
  * Collapsing any two of those loses information the person needs.
  */
 import { readCsrfToken } from "@/lib/csrf";
+// NOTE - Phase 2 Story 5: every call below goes through fetchWithTimeout rather
+// than fetch, so a server that accepts the connection and never answers is given
+// up on instead of leaving the screen waiting.
+import { fetchWithTimeout } from "@/lib/http";
 
 /*
  * One account, exactly as UserSummary sends it.
@@ -118,7 +122,7 @@ export type AccountsResult =
  * lib/currentUser.ts explains this at greater length. It is the same trap.
  */
 export async function fetchAccounts(): Promise<AccountsResult> {
-    const response = await fetch("/api/admin/users");
+    const response = await fetchWithTimeout("/api/admin/users");
 
     if (response.status === 403) {
         return { kind: "refused" };
@@ -255,7 +259,10 @@ export async function createAccount(details: {
     password: string;
     personName: string;
 }): Promise<ChangeResult> {
-    const response = await fetch("/api/admin/users", changeRequest("POST", details));
+    const response = await fetchWithTimeout(
+        "/api/admin/users",
+        changeRequest("POST", details),
+    );
 
     if (isLoginBounce(response)) {
         return { kind: "noSession" };
@@ -294,7 +301,7 @@ export async function updatePersonName(
     id: number,
     personName: string,
 ): Promise<ChangeResult> {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
         `/api/admin/users/${id}`,
         changeRequest("PUT", { personName }),
     );
@@ -333,7 +340,10 @@ export async function updatePersonName(
  * does.
  */
 export async function deleteAccount(id: number): Promise<RemoveResult> {
-    const response = await fetch(`/api/admin/users/${id}`, changeRequest("DELETE"));
+    const response = await fetchWithTimeout(
+        `/api/admin/users/${id}`,
+        changeRequest("DELETE"),
+    );
 
     /*
      * First, and it matters most here. This is the call where a bounce mistaken

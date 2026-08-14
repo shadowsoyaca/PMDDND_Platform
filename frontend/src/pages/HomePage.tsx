@@ -36,10 +36,17 @@ import OwnerHomePage from "@/pages/OwnerHomePage";
 import PlayerHomePage from "@/pages/PlayerHomePage";
 import { fetchCurrentUser, OWNER_ROLE } from "@/lib/currentUser";
 import type { CurrentUser } from "@/lib/currentUser";
+import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 
 export default function HomePage() {
     const [user, setUser] = useState<CurrentUser | null>(null);
     const [loading, setLoading] = useState(true);
+    /*
+     * NOTE - Phase 2 Story 5: what to say when it did not work. Held as text
+     * rather than fixed in the markup, so a request that ran out of time can say
+     * so instead of being described as a server that could not be reached.
+     */
+    const [failure, setFailure] = useState("Could not load your account details.");
 
     /*
      * Ask the server who is signed in, once, when the screen first appears.
@@ -72,8 +79,11 @@ export default function HomePage() {
                 setUser(account);
                 setLoading(false);
             })
-            .catch(() => {
+            .catch((problem) => {
                 if (!cancelled) {
+                    if (isTimeout(problem)) {
+                        setFailure(TIMEOUT_MESSAGE);
+                    }
                     setLoading(false);
                 }
             });
@@ -95,7 +105,7 @@ export default function HomePage() {
         return (
             <div className="flex min-h-screen items-center justify-center bg-slate-100 p-8">
                 <p role="alert" className="text-red-800">
-                    Could not load your account details.
+                    {failure}
                 </p>
             </div>
         );

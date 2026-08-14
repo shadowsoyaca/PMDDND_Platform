@@ -18,6 +18,8 @@
  * the screens that branch on this value, not be told by the compiler that one
  * line needs widening.
  */
+import { fetchWithTimeout } from "@/lib/http";
+
 export type CurrentUser = {
     username: string;
     personName: string;
@@ -52,7 +54,9 @@ export const OWNER_ROLE = "OWNER";
  * server side of it so the behaviour cannot quietly change underneath this.
  */
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {
-    const response = await fetch("/api/me");
+    // NOTE - Phase 2 Story 5: fetchWithTimeout, not fetch. A server that accepts
+    // the connection and never answers used to leave the screen loading forever.
+    const response = await fetchWithTimeout("/api/me");
 
     const isJson = response.headers
         .get("content-type")

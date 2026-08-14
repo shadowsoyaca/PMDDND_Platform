@@ -20,6 +20,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { deleteAccount } from "@/lib/accounts";
+import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 import type { Account } from "@/lib/accounts";
 
 /*
@@ -68,8 +69,12 @@ export default function RemoveAccountConfirm({
             }
 
             onRemoved(account.id);
-        } catch {
-            setError("Could not reach the server. Please try again.");
+        } catch (failure) {
+            setError(
+                isTimeout(failure)
+                    ? `${TIMEOUT_MESSAGE} Please try again.`
+                    : "Could not reach the server. Please try again.",
+            );
         } finally {
             setSubmitting(false);
         }
