@@ -433,6 +433,50 @@ describe("AccountsPage", () => {
         expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
     });
 
+    it("refuses a username with a space in it, without sending anything", async () => {
+        const user = userEvent.setup();
+        const fetchMock = serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Add account" }));
+        await user.type(screen.getByLabelText("Username"), "ash ketchum");
+        await user.type(screen.getByLabelText("Name"), "Ash Ketchum");
+        await user.type(screen.getByLabelText("Password"), "pikachu2026");
+        await user.click(screen.getByRole("button", { name: "Create account" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "A username can use letters, numbers, dashes and underscores only.",
+        );
+        expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    });
+
+    it("accepts a username with a dash and an underscore", async () => {
+        const user = userEvent.setup();
+        const fetchMock = serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Add account" }));
+        await user.type(screen.getByLabelText("Username"), "ash_ketchum-2");
+        await user.type(screen.getByLabelText("Name"), "Ash Ketchum");
+        await user.type(screen.getByLabelText("Password"), "pikachu2026");
+        await user.click(screen.getByRole("button", { name: "Create account" }));
+
+        /*
+         * The other half of the rule. A check written slightly too strictly would
+         * refuse these two characters and pass every test above, because all of
+         * those use plain letters.
+         */
+        await waitFor(() =>
+            expect(
+                fetchMock.mock.calls.some((call) => call[1]?.method === "POST"),
+            ).toBe(true),
+        );
+    });
+
     it("refuses a password longer than BCrypt actually reads, without sending anything", async () => {
         const user = userEvent.setup();
         const fetchMock = serveAccounts();

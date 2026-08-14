@@ -63,6 +63,16 @@ export type Account = {
 export const ACCOUNT_LIMITS = {
     usernameMin: 3,
     usernameMax: 50,
+    /*
+     * Letters, numbers, a dash and an underscore, and nothing else. The same
+     * expression is on CreateUserRequest, which explains why the rule exists.
+     *
+     * No g flag. A regular expression carrying one remembers where it stopped
+     * between calls, so the same value would match and then fail on alternate
+     * attempts. Nothing here needs it, and this value is shared, which is exactly
+     * the situation where that fault would be hardest to place.
+     */
+    usernameAllowed: /^[A-Za-z0-9_-]+$/,
     passwordMin: 8,
     /*
      * 68, not 100. BCrypt hashes the first 72 bytes of a password and ignores

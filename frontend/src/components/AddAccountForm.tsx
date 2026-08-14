@@ -67,6 +67,18 @@ export default function AddAccountForm({
         if (username.trim().length > ACCOUNT_LIMITS.usernameMax) {
             return `Username must be ${ACCOUNT_LIMITS.usernameMax} characters or fewer.`;
         }
+        /*
+         * Checked after the length, so someone who typed nothing is told it is
+         * required rather than being told which characters are allowed in the
+         * nothing they typed.
+         *
+         * The value is trimmed first, so spaces at either end are removed rather
+         * than refused. Spaces in the middle are refused, because that is a
+         * different username rather than the same one typed untidily.
+         */
+        if (!ACCOUNT_LIMITS.usernameAllowed.test(username.trim())) {
+            return "A username can use letters, numbers, dashes and underscores only.";
+        }
         if (password.length < ACCOUNT_LIMITS.passwordMin) {
             return `Password must be at least ${ACCOUNT_LIMITS.passwordMin} characters.`;
         }

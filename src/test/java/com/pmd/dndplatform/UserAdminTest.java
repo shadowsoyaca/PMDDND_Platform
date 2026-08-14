@@ -235,6 +235,38 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("ashketchum")).isFalse();
     }
 
+    /*
+     * NOTE - Phase 2 Story 5: usernames now have a format rule. Letters,
+     * numbers, a dash and an underscore, and nothing else.
+     *
+     * A space is the case worth testing by name. It is invisible at the end of a
+     * username, cannot be told from a double space in the middle, and cannot be
+     * said out loud, while sign-in matches exactly. So it produces an account
+     * nobody can reliably type.
+     */
+    @Test
+    @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
+    void usernameWithASpace_isRefused() throws Exception {
+        mockMvc.perform(post(ADMIN_URL)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateUserRequest("ash ketchum", "pikachu2026", "Ash Ketchum"))))
+                .andExpect(status().isBadRequest());   // 400
+
+        assertThat(userRepository.existsByUsername("ash ketchum")).isFalse();
+    }
+
+    /* A dash and an underscore are allowed, so the rule is not simply letters. */
+    @Test
+    @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
+    void usernameWithADashAndUnderscore_isAccepted() throws Exception {
+        mockMvc.perform(post(ADMIN_URL)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateUserRequest("ash_ketchum-2", "pikachu2026", "Ash Ketchum"))))
+                .andExpect(status().isCreated());
+    }
+
     /* Person name is required, per the design decision. */
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")

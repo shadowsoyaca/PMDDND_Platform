@@ -1,6 +1,7 @@
 package com.pmd.dndplatform.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /*
@@ -19,8 +20,37 @@ import jakarta.validation.constraints.Size;
  */
 public record CreateUserRequest(
 
+        /*
+         * NOTE: Phase 2 Story 5 - a format rule was added. Before this, a
+         * username could hold anything at all, including spaces.
+         *
+         * Letters, numbers, a dash and an underscore. Nothing else.
+         *
+         * WHY THE RULE EXISTS
+         *
+         * A username is typed from memory, out loud, and sometimes copied off a
+         * message. A space in one is invisible at the end, indistinguishable from
+         * a run of two in the middle, and impossible to describe over a
+         * conversation. Sign-in is an exact match, so a username nobody can state
+         * accurately is a username somebody cannot use.
+         *
+         * WHAT IT DOES NOT DO
+         *
+         * It does not touch capitals. 'Misty' and 'misty' remain two different
+         * accounts, and signing in has to match exactly. That was considered and
+         * deliberately left alone.
+         *
+         * It also does not apply to the owner account, which is seeded from
+         * environment variables by OwnerBootstrap and never passes through here.
+         * An owner username with a space in it would keep working.
+         *
+         * The dash sits last inside the brackets on purpose. Anywhere else it
+         * would mean a range, as in a-z, rather than the character itself.
+         */
         @NotBlank(message = "Username is required.")
         @Size(min = 3, max = 50, message = "Username must be 3 to 50 characters.")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$",
+                 message = "A username can use letters, numbers, dashes and underscores only.")
         String username,
 
         /*
