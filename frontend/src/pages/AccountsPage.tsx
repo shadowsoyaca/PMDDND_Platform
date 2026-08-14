@@ -319,15 +319,27 @@ export default function AccountsPage() {
                     <h1 className="text-2xl font-bold text-slate-800">Accounts</h1>
                     <div className="flex gap-3">
                         {/*
-                          * Hidden while the add form is open, so there is no
-                          * button that appears to do nothing because the thing it
-                          * opens is already on the screen.
+                          * Greyed out while any form is open, rather than hidden.
+                          *
+                          * Hiding it was tried and rejected. A button that
+                          * disappears and comes back reads as the page glitching,
+                          * while one that is visible and unavailable reads as a
+                          * state. The row buttons further down are greyed for the
+                          * same reason, so every action on this screen behaves
+                          * the same way.
+                          *
+                          * Why it is unavailable at all: pressing it while
+                          * editing used to replace that form and throw away
+                          * whatever had been typed, with no warning. Together
+                          * these say finish this or cancel it, then do the next
+                          * thing.
                           */}
-                        {openForm.kind !== "add" && (
-                            <Button onClick={() => setOpenForm({ kind: "add" })}>
-                                Add account
-                            </Button>
-                        )}
+                        <Button
+                            disabled={openForm.kind !== "none"}
+                            onClick={() => setOpenForm({ kind: "add" })}
+                        >
+                            Add account
+                        </Button>
                         <Button asChild variant="outline">
                             <Link to="/">Back</Link>
                         </Button>
@@ -481,9 +493,18 @@ export default function AccountsPage() {
                                           * tests read the same names, so a button
                                           * on the wrong row cannot pass.
                                           */}
+                                        {/*
+                                          * Unavailable while a form is open, the
+                                          * same as the Add account button above.
+                                          * Pressing it then would replace that
+                                          * form and silently discard whatever had
+                                          * been typed into it, and in the add
+                                          * form's case that includes a password.
+                                          */}
                                         <Button
                                             variant="outline"
                                             size="sm"
+                                            disabled={openForm.kind !== "none"}
                                             aria-label={`Edit ${account.username}`}
                                             onClick={() =>
                                                 setOpenForm({ kind: "edit", account })
@@ -506,6 +527,7 @@ export default function AccountsPage() {
                                             <Button
                                                 variant="destructive"
                                                 size="sm"
+                                                disabled={openForm.kind !== "none"}
                                                 aria-label={`Remove ${account.username}`}
                                                 onClick={() =>
                                                     setOpenForm({ kind: "remove", account })

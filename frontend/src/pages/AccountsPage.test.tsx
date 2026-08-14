@@ -683,6 +683,39 @@ describe("AccountsPage", () => {
     });
 
     // -------------------------------------------------------------------------
+    // One thing at a time
+    // -------------------------------------------------------------------------
+
+    it("takes the other actions away while a form is open, so nothing typed is lost", async () => {
+        const user = userEvent.setup();
+        serveAccounts();
+
+        renderAccountsPage();
+        await waitForTable();
+
+        await user.click(screen.getByRole("button", { name: "Edit misty" }));
+
+        /*
+         * Before this, pressing Add account here replaced the edit form and threw
+         * away what had been typed, with no warning. The reverse was worse: a
+         * password half typed into the add form disappeared the same way.
+         *
+         * All three are greyed out rather than removed. Checked as still being on
+         * the page as well as disabled, because a button that vanishes and comes
+         * back reads as the page glitching.
+         */
+        expect(screen.getByRole("button", { name: "Add account" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Edit ashketchum" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Remove ashketchum" })).toBeDisabled();
+
+        // Cancelling gives all of them back.
+        await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+        expect(screen.getByRole("button", { name: "Add account" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "Edit ashketchum" })).toBeEnabled();
+    });
+
+    // -------------------------------------------------------------------------
     // Who is allowed to see any of this
     // -------------------------------------------------------------------------
 
