@@ -33,6 +33,8 @@ import { describe, it, expect, vi } from "vitest";
 import { createAccount, deleteAccount, updatePersonName } from "@/lib/accounts";
 import {
     createdResponse,
+    csrfRefusedResponse,
+    forbiddenResponse,
     htmlResponse,
     jsonResponse,
     noContentResponse,
@@ -79,6 +81,48 @@ describe("the account calls, when the session has ended", () => {
         serveLoginBounce();
 
         expect(await updatePersonName(3, "Misty W.")).toEqual({ kind: "noSession" });
+    });
+});
+
+/*
+ * NOTE - Phase 2 Story 5. Two refusals, one status code, opposite meanings.
+ *
+ * Not being allowed is permanent, and trying again never helps. A rejected CSRF
+ * token clears on a page reload. Both arrive as 403, so before the server started
+ * saying which it was, every one of them was reported as a permissions problem,
+ * including to the owner on their own platform.
+ */
+describe("the account calls, when the server refuses", () => {
+    it("says it was the security token when the server says so", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(csrfRefusedResponse()));
+
+        expect(await createAccount(NEW_ACCOUNT_DETAILS)).toEqual({
+            kind: "error",
+            message: "Your security token was rejected. Reload the page and try again.",
+        });
+    });
+
+    it("says it was permission when the server says that instead", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(forbiddenResponse()));
+
+        expect(await deleteAccount(3)).toEqual({
+            kind: "error",
+            message: "You do not have permission to do that.",
+        });
+    });
+
+    /*
+     * A 403 carrying nothing readable. Treated as an ordinary refusal, which is
+     * the safer way round: telling somebody to reload when they are simply not
+     * allowed sends them round a loop with no end to it.
+     */
+    it("treats a refusal it cannot read as an ordinary one", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 403 })));
+
+        expect(await updatePersonName(3, "Misty W.")).toEqual({
+            kind: "error",
+            message: "You do not have permission to do that.",
+        });
     });
 });
 

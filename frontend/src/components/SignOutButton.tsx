@@ -61,7 +61,13 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { readCsrfToken } from "@/lib/csrf";
 import { fetchCurrentUser } from "@/lib/currentUser";
-import { fetchWithTimeout, isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
+import {
+    CSRF_MESSAGE,
+    fetchWithTimeout,
+    isCsrfRefusal,
+    isTimeout,
+    TIMEOUT_MESSAGE,
+} from "@/lib/http";
 
 export default function SignOutButton() {
     const [error, setError] = useState("");
@@ -144,7 +150,11 @@ export default function SignOutButton() {
              * The refusal is still checked rather than trusted, because a
              * refusal to this request does not prove a session is there.
              */
-            await settleWhatHappened("Could not sign out. You are still signed in.");
+            await settleWhatHappened(
+                (await isCsrfRefusal(response))
+                    ? `Could not sign out. ${CSRF_MESSAGE}`
+                    : "Could not sign out. You are still signed in.",
+            );
         } catch (failure) {
             await settleWhatHappened(
                 isTimeout(failure)

@@ -77,7 +77,25 @@ export function emptyResponse(): Response {
  * screen that tried to read a message out of it would find nothing.
  */
 export function forbiddenResponse(): Response {
-    return new Response(null, { status: 403 });
+    return new Response(JSON.stringify({ reason: "forbidden" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+    });
+}
+
+/*
+ * NOTE - Phase 2 Story 5: a refusal over the CSRF token, status 403.
+ *
+ * The same status as the refusal above and a different meaning. Not being allowed
+ * is permanent; a rejected token clears on a page reload. DeniedReasonHandler on
+ * the server is what puts the reason in the body so the two can be told apart,
+ * and this is what a test uses to prove the screens read it.
+ */
+export function csrfRefusedResponse(): Response {
+    return new Response(JSON.stringify({ reason: "csrf" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+    });
 }
 
 /*

@@ -33,6 +33,50 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 export const TIMEOUT_MESSAGE = "The server took too long to answer.";
 
 /*
+ * What to show when the server refused a request over its CSRF token.
+ *
+ * It names the fix rather than the fault, because the fault means nothing to
+ * anyone using the platform and the fix is one action. Reloading really does
+ * repair it: a fresh token is issued as the page loads.
+ */
+export const CSRF_MESSAGE =
+    "Your security token was rejected. Reload the page and try again.";
+
+/*
+ * Was that 403 about the CSRF token rather than about permission?
+ *
+ * response - the refusal that came back.
+ *
+ * Returns true only when the server said it was the token.
+ *
+ * Raises nothing. Anything unreadable is treated as an ordinary refusal, which is
+ * the safer way round: telling somebody to reload when the real answer is that
+ * they are not allowed sends them round a loop that cannot end.
+ *
+ * WHY THE RESPONSE IS CLONED
+ *
+ * A response body can only be read once. Reading it here would leave the caller
+ * holding an empty one, and the failure would appear far away from this line, as
+ * a body that is mysteriously already used. Cloning costs nothing on a body this
+ * small and removes that possibility.
+ *
+ * The reason is written by DeniedReasonHandler, which explains why two fixed
+ * words are sent rather than the real exception message.
+ */
+export async function isCsrfRefusal(response: Response): Promise<boolean> {
+    if (response.status !== 403) {
+        return false;
+    }
+
+    try {
+        const body = await response.clone().json();
+        return body?.reason === "csrf";
+    } catch {
+        return false;
+    }
+}
+
+/*
  * Thrown when a request ran out of time.
  *
  * Its own class rather than a plain Error carrying a message, so a caller can ask

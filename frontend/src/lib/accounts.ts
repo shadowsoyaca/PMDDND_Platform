@@ -25,7 +25,7 @@ import { readCsrfToken } from "@/lib/csrf";
 // NOTE - Phase 2 Story 5: every call below goes through fetchWithTimeout rather
 // than fetch, so a server that accepts the connection and never answers is given
 // up on instead of leaving the screen waiting.
-import { fetchWithTimeout } from "@/lib/http";
+import { CSRF_MESSAGE, fetchWithTimeout, isCsrfRefusal } from "@/lib/http";
 
 /*
  * One account, exactly as UserSummary sends it.
@@ -217,6 +217,23 @@ const UNEXPECTED = "Something went wrong. Please try again.";
 const NOT_ALLOWED = "You do not have permission to do that.";
 
 /*
+ * Turns a 403 into the right sentence.
+ *
+ * response - the refusal.
+ *
+ * Returns wording that matches what actually happened.
+ *
+ * A 403 covers two situations that need opposite responses from the person. Not
+ * being allowed is permanent, and trying again never helps. A rejected CSRF token
+ * clears on a page reload. Telling somebody the first when it is the second sends
+ * them looking for a permissions problem that does not exist, which is what this
+ * used to do to the owner on their own platform.
+ */
+async function refusalMessage(response: Response): Promise<string> {
+    return (await isCsrfRefusal(response)) ? CSRF_MESSAGE : NOT_ALLOWED;
+}
+
+/*
  * Builds the request options for a call that changes something.
  *
  * method - POST, PUT or DELETE.
@@ -277,7 +294,7 @@ export async function createAccount(details: {
         };
     }
     if (response.status === 403) {
-        return { kind: "error", message: NOT_ALLOWED };
+        return { kind: "error", message: await refusalMessage(response) };
     }
     if (!response.ok) {
         return { kind: "error", message: UNEXPECTED };
@@ -313,7 +330,7 @@ export async function updatePersonName(
         return { kind: "error", message: "That name was not accepted." };
     }
     if (response.status === 403) {
-        return { kind: "error", message: NOT_ALLOWED };
+        return { kind: "error", message: await refusalMessage(response) };
     }
     if (!response.ok) {
         return { kind: "error", message: UNEXPECTED };
@@ -362,7 +379,7 @@ export async function deleteAccount(id: number): Promise<RemoveResult> {
         };
     }
     if (response.status === 403) {
-        return { kind: "error", message: NOT_ALLOWED };
+        return { kind: "error", message: await refusalMessage(response) };
     }
     if (!response.ok) {
         return { kind: "error", message: UNEXPECTED };
