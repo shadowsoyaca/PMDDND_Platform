@@ -14,7 +14,13 @@ licence is permissive, because the licence terms live at that URL and can be
 checked again later. Where the origin is genuinely unknown, say so plainly
 rather than leaving the item out.
 
-Last reviewed: Phase 2 Story 4.8.
+Last reviewed: Phase 2 Story 5.
+
+That story added one shadcn/ui component, `table.tsx`, and no artwork, fonts,
+icons or dependencies. shadcn/ui generates its components as source files into
+this repository rather than installing them, so the new file needs no entry of
+its own beyond the existing shadcn/ui row and the note below it. Nothing was
+added to `package.json` or `package-lock.json`.
 
 ---
 

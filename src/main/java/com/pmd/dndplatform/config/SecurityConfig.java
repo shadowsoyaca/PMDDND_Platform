@@ -6,6 +6,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -181,6 +182,12 @@ public class SecurityConfig {
              * same-origin rules stop it reading this site's cookies, so it
              * cannot supply a matching token. The session cookie itself,
              * JSESSIONID, stays httpOnly and unreadable.
+             *
+             * NOTE - Phase 2 Story 5: this block alone is NOT enough, and the
+             * paragraph above overstates what it does. The token described here
+             * is only created when something asks for it, and nothing did, so no
+             * cookie was ever written. See CsrfCookieFilter at the bottom of this
+             * method, which is what makes any of the above true in practice.
              */
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
@@ -201,7 +208,22 @@ public class SecurityConfig {
              */
             .exceptionHandling(handling -> handling
                 .accessDeniedHandler(new DeniedReasonHandler())
-            );
+            )
+            /*
+             * NOTE - Phase 2 Story 5: this is what makes the CSRF cookie exist.
+             *
+             * Without it the token is created only when something asks for it,
+             * and a React page never asks. The measured result was that every
+             * first attempt failed and every second attempt worked: signing in
+             * took two tries, signing out took two tries, and so did creating an
+             * account. CsrfCookieFilter explains the whole mechanism.
+             *
+             * Placed after BasicAuthenticationFilter so it runs late enough to
+             * see the token Spring Security put on the request, and, more
+             * importantly, late enough on a sign-in to write the NEW token that
+             * replaces the one authentication throws away.
+             */
+            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class);
 
         return http.build();
     }

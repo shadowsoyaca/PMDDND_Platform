@@ -173,7 +173,7 @@ What must be installed before the project will build and run:
         the version being hand-typed is gone because it no longer is. -->
    A successful response looks like:
    ```
-   PMD D&D Platform is up and running! Version: 2.4.8, built 2026-08-11T02:39:22Z
+   PMD D&D Platform is up and running! Version: 2.5.0, built 2026-08-14T05:08:41Z
    ```
    The version and the build time both come from the build, so neither is
    maintained by hand. The time is UTC.
@@ -192,9 +192,16 @@ What must be installed before the project will build and run:
    http://localhost:8080/
    ```
    A logged-out visitor lands on the login screen whatever address they ask for
-   (Phase 2 Story 4). Signing in leads to a placeholder screen showing the
-   account and a sign-out button, which stands in until there is somewhere real
-   to land.
+   (Phase 2 Story 4).
+
+   <!-- NOTE: Phase 2 Story 5 - the single placeholder landing screen is gone.
+        Both roles now land at "/" and are shown different things. -->
+   Signing in leads to one of two landing screens, chosen by the account's role
+   (Phase 2 Story 5). Both show who is signed in and a sign-out button. The
+   owner's also has a link through to the account table at `/accounts`, where
+   accounts are created, renamed and removed. A player's does not, and a player
+   who types that address in is told they do not have permission, because the
+   server refuses them the data.
 
    Test in a private browsing window. A session cookie left over from an earlier
    run will otherwise make a logged-out visit look like a signed-in one, which is
@@ -216,7 +223,13 @@ story. Neither one runs the other, so running only one proves only half.
 .\mvnw.cmd test
 ```
 
-30 tests, about thirty seconds. This does not build or test the frontend.
+<!-- NOTE: Phase 2 Story 5 - was 30. -->
+45 tests, about forty seconds. This does not build or test the frontend.
+
+One of them, `CsrfCookieTest`, starts a real server on a real port rather than
+using MockMvc, which is why the suite takes a little longer than it used to. The
+reason is in that file: what it tests is cookies surviving from one request to
+the next, and MockMvc does not carry them.
 
 **Frontend** — Windows PowerShell, from `frontend/`:
 
@@ -224,13 +237,15 @@ story. Neither one runs the other, so running only one proves only half.
 npm test
 ```
 
-9 tests, about six seconds. Runs every `*.test.ts` and `*.test.tsx` file anywhere
+<!-- NOTE: Phase 2 Story 5 - was 9. -->
+54 tests, about fifteen seconds. Runs every `*.test.ts` and `*.test.tsx` file anywhere
 under `frontend/`, so a new test file is picked up with no configuration to
 edit. It runs once and exits with a pass or fail code rather than watching.
 
 The first run after a Maven `package` takes closer to a minute. That is not a
 fault: `npm ci` deletes and reinstalls `node_modules` by design, which throws
-away the build cache along with it. The next run is back to six seconds.
+away the build cache along with it. The next run is back to about fifteen
+seconds.
 
 For a watching run while writing tests, use `npx vitest` from `frontend/`.
 
@@ -343,6 +358,15 @@ src/main/java/com/pmd/dndplatform/
         WebConfig.java            - forwards the React app's own addresses to
                                     index.html, so they survive being typed in
                                     or reloaded
+        CsrfCookieFilter.java     - Phase 2 Story 5. Asks for the CSRF token on
+                                    every request, which is what causes the
+                                    cookie to be written. Without it the token
+                                    was never created, and every first attempt at
+                                    anything was refused while the second worked
+        DeniedReasonHandler.java  - Phase 2 Story 5. Says WHY a request was
+                                    refused, so the screens can tell "you are not
+                                    allowed", which is permanent, from "your CSRF
+                                    token was rejected", which a reload fixes
 
     user/
         Role.java                       - the account roles (OWNER, PLAYER)
@@ -391,6 +415,21 @@ src/test/java/com/pmd/dndplatform/
                                        create, list, update, delete, role
                                        enforcement, hash-not-password storage,
                                        and the delete guards
+    CurrentUserTest.java             - Phase 2 Story 5. /api/me: signs in for
+                                       real and carries the session forward, so
+                                       it proves the database was read rather
+                                       than the session echoed back
+    WebConfigTest.java               - Phase 2 Story 5. Typing an address in, or
+                                       reloading it, still reaches the app.
+                                       Forgetting that line 404s only on reload,
+                                       which nobody finds by clicking
+    DeniedReasonTest.java            - Phase 2 Story 5. A refusal says which kind
+                                       it is, and a visitor with no session is
+                                       still sent to the login screen
+    CsrfCookieTest.java              - Phase 2 Story 5. Runs against a REAL server
+                                       on a real port, not MockMvc, because what
+                                       it tests is cookies surviving between
+                                       requests and MockMvc does not carry them
 
 src/test/resources/
     application-test.yaml - points tests at the pmd_dnd_test database
@@ -423,12 +462,17 @@ frontend/                       - the React application (Phase 2 Story 4)
         pages/
             LoginPage.tsx       - the login screen: artwork, form, and the
                                   request that signs a player in
-            HomePage.tsx        - placeholder landing screen: shows who is signed
-                                  in, and the sign-out button
+            HomePage.tsx        - Phase 2 Story 5. No longer a screen. It loads
+                                  the account and picks which landing to draw
+            OwnerHomePage.tsx   - the owner's landing, with the link to the
+                                  account table
+            PlayerHomePage.tsx  - a player's landing, without it
+            AccountsPage.tsx    - the account table: search, sorting, and the
+                                  three forms. Also the refusal a player sees
 
             LoginPage.test.tsx  - Phase 2 Story 4.7. Tests sit beside the screen
             HomePage.test.tsx     they test. Both cover the content-type check
-                                  that tells a real answer apart from a bounce,
+            AccountsPage.test.tsx that tells a real answer apart from a bounce,
                                   which is the trap two bugs came out of
 
         test/                   - Phase 2 Story 4.7. Shared test pieces. Nothing
@@ -439,13 +483,39 @@ frontend/                       - the React application (Phase 2 Story 4)
             responses.ts        - builds the answers the server sends, so a test
                                   says which shape it wants and nothing else
 
+        components/             - Phase 2 Story 5. Pieces shared by more than one
+                                  screen
+            SignOutButton.tsx   - shared by both landings. Carries the token
+                                  timing fix, and reports a failed sign out
+                                  rather than pretending it worked
+            AccountDetails.tsx  - the username, name and role block
+            AddAccountForm.tsx  - creates an account
+            EditAccountForm.tsx - changes a person name, and nothing else
+            RemoveAccountConfirm.tsx - the confirmation, which names the account
+
+            SignOutButton.test.tsx - the sign out tests, which moved here with
+                                  the code they cover
+
         components/ui/          - shadcn/ui components. These are OWNED here and
                                   meant to be edited, not treated as library
                                   files. Phase 4 Story 1 restyles them
-            button.tsx  card.tsx  input.tsx  label.tsx
+            button.tsx  card.tsx  input.tsx  label.tsx  table.tsx
 
         lib/
             utils.ts            - the class-name helper shadcn/ui components use
+            csrf.ts             - Phase 2 Story 5. Reads the CSRF token, in one
+                                  place rather than four
+            currentUser.ts      - Phase 2 Story 5. Asks who is signed in, and
+                                  tells "no session" apart from "no answer"
+            accounts.ts         - Phase 2 Story 5. The account calls, and the
+                                  limits the server enforces. Tells four answers
+                                  apart, including a bounce that looks successful
+            http.ts             - Phase 2 Story 5. fetch with a ten second limit,
+                                  and telling a CSRF refusal from a permission one
+
+            accounts.test.ts    - Phase 2 Story 5. Guards a real fault: a removal
+            http.test.ts          that reported success while the account stayed
+                                  in the database
 
         assets/                 - login_backdrop.png, title.png, badge.png.
                                   Imported from TypeScript so the build
@@ -538,7 +608,7 @@ Story 4.7 (Frontend test framework) ✅
      than the first that needed them. -->
 Story 4.8 (Both test suites run on every pull request) ✅
 
-Story 5 (Owner user management screen and role-based landing) ⬜ next
+Story 5 (Owner user management screen and role-based landing) ✅
 
 Story 5.5 (Replace form login with a JSON endpoint) ⬜
 
@@ -675,10 +745,10 @@ The unit is enabled (starts on boot), auto-restarts on failure, and is hardened
 
 **Build & transfer (Phase 1 Story 7):**
 1. Build the executable JAR on the dev machine on the Windows PowerShell, from the repo root:
-   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.4.8.jar`
+   `.\mvnw.cmd clean package` → produces `target\dndplatform-2.5.0.jar`
    (a single runnable "fat" JAR containing the backend and the built frontend).
    The version comes from `<version>` in `pom.xml` and is bumped on each story
-   branch: phase.story.child, so `2.4.8` is Phase 2 Story 4.8.
+   branch: phase.story.child, so `2.5.0` is Phase 2 Story 5.
    <!-- NOTE: Phase 2 Story 4.5 - the build also writes this version and the
         current time into the JAR, which is where /health gets its answer. -->
    The build also records that version and the time it ran inside the JAR, so
@@ -698,14 +768,14 @@ sudo install -m 0755 ~/deploy.sh /usr/local/bin/dndplatform-deploy
 Each deploy:
 
 1. Dev machine (Windows PowerShell, from the repo root):
-   `.\mvnw.cmd clean package` → `target\dndplatform-2.4.8.jar`
+   `.\mvnw.cmd clean package` → `target\dndplatform-2.5.0.jar`
 2. Upload it (WSL Ubuntu, from the repo root under `/mnt/c/...`):
-   `scp target/dndplatform-2.4.8.jar matthew@<server-ip>:~/`
+   `scp target/dndplatform-2.5.0.jar matthew@<server-ip>:~/`
 3. Server (over SSH):
    `sudo dndplatform-deploy`
    The script moves the uploaded JAR into `/opt/dndplatform/releases/` under a
    name carrying its version and the time of install (for example
-   `dndplatform-2.4.8-20260724-034213.jar`), repoints the `current.jar` symlink
+   `dndplatform-2.5.0-20260814-034213.jar`), repoints the `current.jar` symlink
    at it, restarts `dndplatform.service`, polls `http://localhost:8080/health`,
    and reports PASS or FAIL. On success it deletes all but the newest 5 builds.
    On failure it deletes nothing and prints the exact one-line rollback command
