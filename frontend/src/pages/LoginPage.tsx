@@ -45,21 +45,19 @@ import title from "@/assets/title.png";
 import badge from "@/assets/badge.png";
 
 /*
- * Reads the CSRF token out of the cookie Spring set.
+ * NOTE - Phase 2 Story 5: readCsrfToken used to be written out here and again in
+ * HomePage. Story 5 needs it in two further places, so it moved to lib/csrf.ts
+ * before a third copy was made. The explanation of what the token is for went
+ * with it.
  *
- * SecurityConfig uses the cookie-based token repository, which writes the token
- * to a cookie named XSRF-TOKEN that JavaScript is allowed to read. Spring then
- * expects the same value back in the X-XSRF-TOKEN header on any request that
- * changes something. A hostile site can make your browser send a request here,
- * but it cannot read this site's cookies, so it cannot supply a matching token.
- *
- * Returns an empty string if the cookie is missing, which lets the request go
- * out and be rejected by the server rather than failing silently in the browser.
+ * NOTE - Phase 2 Story 5: fetchCurrentUser replaces the hand-written check
+ * further down, which asked /api/me whether the sign-in had worked and read the
+ * content type to be sure the answer was real. That reasoning now lives in
+ * lib/currentUser.ts, next to the one copy of the code.
  */
-function readCsrfToken(): string {
-    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : "";
-}
+import { readCsrfToken } from "@/lib/csrf";
+import { fetchCurrentUser } from "@/lib/currentUser";
+import { fetchWithTimeout, isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -103,7 +101,7 @@ export default function LoginPage() {
             body.set("username", username);
             body.set("password", password);
 
-            await fetch("/login", {
+            await fetchWithTimeout("/login", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -115,35 +113,40 @@ export default function LoginPage() {
             /*
              * Form login answers with a redirect whether the sign-in worked or
              * not, so the first request cannot report which happened. What can
-             * is asking the server who we are now.
-             *
-             * NOTE - the check below looks at the content type, not only the
-             * status. When there is no session, /api/me answers with a redirect
-             * to the login screen, and fetch quietly follows it: what arrives
-             * here is the login page's HTML with status 200. A status check
-             * alone would read that as success and wave a failed login through.
-             * Asking whether the body is JSON is what actually distinguishes the
-             * two.
+             * is asking the server who we are now. An account back means there
+             * is a session; null means there is not, and the password was wrong.
              *
              * DEFERRED to Phase 2 Story 5.5: an endpoint that answers with data
              * instead of a redirect. That would make this second request
              * unnecessary and, more importantly, would let this screen tell a
              * wrong password apart from a server that cannot be reached. Until
              * then the message below has to cover both.
+             *
+             * NOTE - Phase 2 Story 5: the answer is not read for the role here.
+             * Both roles are sent to the same address and that screen decides
+             * what to draw, so this screen never has to know who signed in.
              */
-            const check = await fetch("/api/me");
-            const isJson = check.headers
-                .get("content-type")
-                ?.includes("application/json");
+            const account = await fetchCurrentUser();
 
-            if (check.ok && isJson) {
+            if (account) {
                 navigate("/");
                 return;
             }
 
             setError("That username and password did not match. Please try again.");
-        } catch {
-            setError("Could not reach the server. Please try again.");
+        } catch (failure) {
+            /*
+             * NOTE - Phase 2 Story 5: a request that ran out of time is now told
+             * apart from one that never connected. They are different faults and
+             * they lead to different next steps: one means the server is not
+             * there, the other means it is there and struggling, and trying again
+             * shortly is reasonable.
+             */
+            setError(
+                isTimeout(failure)
+                    ? `${TIMEOUT_MESSAGE} Please try again.`
+                    : "Could not reach the server. Please try again.",
+            );
         } finally {
             setSubmitting(false);
         }

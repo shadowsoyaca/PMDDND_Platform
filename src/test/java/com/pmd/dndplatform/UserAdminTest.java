@@ -209,6 +209,64 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("ashketchum")).isFalse();
     }
 
+    /*
+     * NOTE - Phase 2 Story 5: the upper limit on a password, which was 100 and
+     * is now 68.
+     *
+     * BCrypt hashes the first 72 bytes and ignores the rest, so anything longer
+     * carries a tail that does nothing. Accepting it would mean two passwords
+     * sharing their first 72 bytes opening the same account, while the form
+     * claimed the whole thing mattered.
+     *
+     * 69 characters rather than something far longer, so the test fails if the
+     * limit is moved by even one.
+     */
+    @Test
+    @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
+    void tooLongPassword_isRefused() throws Exception {
+        String justOverTheLimit = "p".repeat(69);
+
+        mockMvc.perform(post(ADMIN_URL)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateUserRequest("ashketchum", justOverTheLimit, "Ash Ketchum"))))
+                .andExpect(status().isBadRequest());   // 400
+
+        assertThat(userRepository.existsByUsername("ashketchum")).isFalse();
+    }
+
+    /*
+     * NOTE - Phase 2 Story 5: usernames now have a format rule. Letters,
+     * numbers, a dash and an underscore, and nothing else.
+     *
+     * A space is the case worth testing by name. It is invisible at the end of a
+     * username, cannot be told from a double space in the middle, and cannot be
+     * said out loud, while sign-in matches exactly. So it produces an account
+     * nobody can reliably type.
+     */
+    @Test
+    @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
+    void usernameWithASpace_isRefused() throws Exception {
+        mockMvc.perform(post(ADMIN_URL)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateUserRequest("ash ketchum", "pikachu2026", "Ash Ketchum"))))
+                .andExpect(status().isBadRequest());   // 400
+
+        assertThat(userRepository.existsByUsername("ash ketchum")).isFalse();
+    }
+
+    /* A dash and an underscore are allowed, so the rule is not simply letters. */
+    @Test
+    @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
+    void usernameWithADashAndUnderscore_isAccepted() throws Exception {
+        mockMvc.perform(post(ADMIN_URL)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateUserRequest("ash_ketchum-2", "pikachu2026", "Ash Ketchum"))))
+                .andExpect(status().isCreated());
+    }
+
     /* Person name is required, per the design decision. */
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")

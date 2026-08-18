@@ -6,6 +6,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -181,11 +182,48 @@ public class SecurityConfig {
              * same-origin rules stop it reading this site's cookies, so it
              * cannot supply a matching token. The session cookie itself,
              * JSESSIONID, stays httpOnly and unreadable.
+             *
+             * NOTE - Phase 2 Story 5: this block alone is NOT enough, and the
+             * paragraph above overstates what it does. The token described here
+             * is only created when something asks for it, and nothing did, so no
+             * cookie was ever written. See CsrfCookieFilter at the bottom of this
+             * method, which is what makes any of the above true in practice.
              */
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-            );
+            )
+            /*
+             * NOTE - Phase 2 Story 5: refusals now say which kind they are.
+             *
+             * Being refused for lacking permission and being refused over a CSRF
+             * token both arrive as 403, and they need opposite responses from the
+             * person: one is permanent and one clears on a page reload. The
+             * handler writes a one-word reason so the screens can tell them apart
+             * instead of guessing, which they did, wrongly.
+             *
+             * This affects only callers who ARE signed in. A request with no
+             * session is caught before this by the entry point and bounced to the
+             * login screen, which is unchanged.
+             */
+            .exceptionHandling(handling -> handling
+                .accessDeniedHandler(new DeniedReasonHandler())
+            )
+            /*
+             * NOTE - Phase 2 Story 5: this is what makes the CSRF cookie exist.
+             *
+             * Without it the token is created only when something asks for it,
+             * and a React page never asks. The measured result was that every
+             * first attempt failed and every second attempt worked: signing in
+             * took two tries, signing out took two tries, and so did creating an
+             * account. CsrfCookieFilter explains the whole mechanism.
+             *
+             * Placed after BasicAuthenticationFilter so it runs late enough to
+             * see the token Spring Security put on the request, and, more
+             * importantly, late enough on a sign-in to write the NEW token that
+             * replaces the one authentication throws away.
+             */
+            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class);
 
         return http.build();
     }

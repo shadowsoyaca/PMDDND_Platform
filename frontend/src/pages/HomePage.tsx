@@ -1,90 +1,89 @@
 /*
  * Phase 2 Story 4: a placeholder for whatever a player sees after signing in.
  *
- * WHAT THIS IS FOR
+ * NOTE - Phase 2 Story 5: this is no longer a screen. It is the piece that loads
+ * the account and decides which screen to draw, OwnerHomePage or PlayerHomePage.
+ * Everything it used to show has moved into those two files and the two small
+ * components they share.
  *
- * Story 4 needs somewhere to land after a successful sign-in, and it needs a
- * logout button. There is nothing else to show yet: no roster, no character
- * sheet, no dungeon. So this screen does the two things the story asks for and
- * nothing more.
+ * WHY THE SPLIT IS DONE HERE RATHER THAN AT THE ADDRESS
  *
- * It also earns its place as a check. Seeing the right name and role here means
- * the session really was started, rather than the screen merely having navigated
- * away from the login page.
+ * The alternative was two addresses, with the login screen or a redirect sending
+ * each role to its own. That was rejected for this story. It needs the role to be
+ * known before anyone can be sent anywhere, so it means signing in, landing, and
+ * then being moved again, which shows as a flicker and puts a second address in
+ * the browser's history that nobody chose to visit. One address that draws the
+ * right thing avoids all of it, and splitting the addresses later changes only
+ * this file.
  *
- * WHAT REPLACES IT
+ * WHY THE LOADING IS HERE AND NOT IN EACH SCREEN
  *
- * Landing by role. The account's role is already shown below, and the backend
- * has carried OWNER and PLAYER since Phase 2 Story 3, so branching to different
- * home pages needs no new groundwork - only somewhere for each role to land.
- * That becomes its own story once those screens exist.
+ * Neither landing screen can be drawn until the role is known, so the request has
+ * to finish first whichever screen wins. Doing it once here means the two screens
+ * receive an account that is already there and have no loading state, no error
+ * state, and no request of their own to get wrong.
+ *
+ * WHAT THE ROLE IS AND IS NOT
+ *
+ * It decides what is drawn and nothing else. Anything the browser is told can be
+ * edited by whoever holds it, so a player who changes this value in their browser
+ * sees the owner's screen and its link, and is then refused by the server the
+ * moment the screen asks for any account data.
  */
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { Button } from "@/components/ui/button";
 
-type CurrentUser = {
-    username: string;
-    personName: string;
-    role: string;
-};
-
-/*
- * Reads the CSRF token out of the cookie Spring set.
- *
- * Deliberately a plain function rather than a stored value, so that every caller
- * gets the token as it is at the moment of asking. Spring issues a fresh token
- * when a session starts, so a value captured earlier can already be out of date.
- */
-function readCsrfToken(): string {
-    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : "";
-}
+import OwnerHomePage from "@/pages/OwnerHomePage";
+import PlayerHomePage from "@/pages/PlayerHomePage";
+import { fetchCurrentUser, OWNER_ROLE } from "@/lib/currentUser";
+import type { CurrentUser } from "@/lib/currentUser";
+import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 
 export default function HomePage() {
     const [user, setUser] = useState<CurrentUser | null>(null);
     const [loading, setLoading] = useState(true);
-
+    /*
+     * NOTE - Phase 2 Story 5: what to say when it did not work. Held as text
+     * rather than fixed in the markup, so a request that ran out of time can say
+     * so instead of being described as a server that could not be reached.
+     */
+    const [failure, setFailure] = useState("Could not load your account details.");
 
     /*
-     * Ask the server who is signed in.
+     * Ask the server who is signed in, once, when the screen first appears.
      *
-     * NOTE - the check below looks at the content type, not only the status.
+     * Three outcomes, and they are deliberately not the same:
      *
-     * A logged-out request is answered with a redirect to the login screen, but
-     * fetch follows redirects on its own and does not report that it happened.
-     * What arrives here is the login page's HTML, with status 200. So the status
-     * cannot tell a real answer apart from a bounce, and asking whether the body
-     * is JSON is what actually distinguishes them.
+     *   an account   - draw the matching screen.
+     *   no session   - leave for the login screen, through window.location rather
+     *                  than the router, so the whole page is thrown away.
+     *   no answer    - stay put and say so. Leaving would hide a server problem
+     *                  behind a login prompt, and the player would try their
+     *                  password, fail, and report the wrong fault.
      *
-     * On a bounce this leaves through window.location rather than through the
-     * router. A full browser navigation throws the current page away instead of
-     * swapping part of it, which is the right behaviour for "you are not signed
-     * in": nothing from the previous state can survive it.
+     * The cancelled flag guards against the answer arriving after the screen has
+     * gone. Setting state on a screen that is no longer there does nothing useful
+     * and React warns about it.
      */
     useEffect(() => {
         let cancelled = false;
 
-        fetch("/api/me")
-            .then((response) => {
-                const isJson = response.headers
-                    .get("content-type")
-                    ?.includes("application/json");
-
-                if (!response.ok || !isJson) {
+        fetchCurrentUser()
+            .then((account) => {
+                if (cancelled) {
+                    return;
+                }
+                if (!account) {
                     window.location.href = "/login";
-                    return null;
+                    return;
                 }
-                return response.json();
+                setUser(account);
+                setLoading(false);
             })
-            .then((data) => {
-                if (!cancelled && data) {
-                    setUser(data);
-                    setLoading(false);
-                }
-            })
-            .catch(() => {
+            .catch((problem) => {
                 if (!cancelled) {
+                    if (isTimeout(problem)) {
+                        setFailure(TIMEOUT_MESSAGE);
+                    }
                     setLoading(false);
                 }
             });
@@ -94,70 +93,27 @@ export default function HomePage() {
         };
     }, []);
 
-/*
-     * NOTE - sent directly rather than through a plain form submission.
-     *
-     * The token used to live in a hidden field, written in as the form was
-     * submitted. That was unreliable: React owns that field, and any redraw
-     * resets it to empty. The answer to /api/me arriving is itself a redraw, so
-     * whether the token survived until the browser sent the form came down to
-     * timing, and a wiped token is refused with 403.
-     *
-     * Reading it here means it is taken at the moment of sending, with nothing
-     * in between that could replace it.
-     */
-    async function handleSignOut(event: FormEvent) {
-        event.preventDefault();
-
-        await fetch("/logout", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "X-XSRF-TOKEN": readCsrfToken(),
-            },
-        });
-
-        window.location.href = "/login?logout";
+    if (loading) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-100 p-8">
+                <p className="text-slate-600">Loading...</p>
+            </div>
+        );
     }
 
-    return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-100 p-8">
-            <div className="w-[min(90vw,28rem)] rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-                <h1 className="mb-6 text-2xl font-bold text-slate-800">
-                    Signed in
-                </h1>
-
-                {loading && <p className="text-slate-600">Loading...</p>}
-
-                {!loading && !user && (
-                    <p role="alert" className="text-red-800">
-                        Could not load your account details.
-                    </p>
-                )}
-
-                {user && (
-                    <dl className="mb-8 space-y-3">
-                        <div>
-                            <dt className="text-sm text-slate-500">Username</dt>
-                            <dd className="text-slate-900">{user.username}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-slate-500">Name</dt>
-                            <dd className="text-slate-900">{user.personName}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-slate-500">Role</dt>
-                            <dd className="text-slate-900">{user.role}</dd>
-                        </div>
-                    </dl>
-                )}
-
-                <form onSubmit={handleSignOut}>
-                    <Button type="submit" className="w-full">
-                        Sign out
-                    </Button>
-                </form>
+    if (!user) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-100 p-8">
+                <p role="alert" className="text-red-800">
+                    {failure}
+                </p>
             </div>
-        </div>
+        );
+    }
+
+    return user.role === OWNER_ROLE ? (
+        <OwnerHomePage user={user} />
+    ) : (
+        <PlayerHomePage user={user} />
     );
 }
