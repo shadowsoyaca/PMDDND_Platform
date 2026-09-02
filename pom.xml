@@ -58,7 +58,7 @@
 	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
 	     you", which is the wrong thing to say about a build you deploy and might
 	     later roll back to. -->
-	<version>2.5.0</version>
+	<version>2.5.5</version>
 
 	<!-- ======================================================================
 	     PROJECT METADATA
@@ -332,9 +332,7 @@
 					     gets checked.
 
 					     WHY IT IS LAST. "npm run build" runs the TypeScript
-					     compiler. If a type is wrong, that is a more basic
-					     failure than a test disagreeing, and it is more useful
-					     to be told about it first.
+					     compiler. 
 
 					     COST: roughly 45 seconds on a package build. Almost none
 					     of that is the tests themselves, which take about six.

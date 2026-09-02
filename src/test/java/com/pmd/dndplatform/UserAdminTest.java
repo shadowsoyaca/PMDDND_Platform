@@ -18,9 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -291,8 +289,27 @@ class UserAdminTest {
                         .content(json(new CreateUserRequest("ashketchum", "pikachu2026", "Ash Ketchum"))))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(formLogin().user("ashketchum").password("pikachu2026"))
-                .andExpect(authenticated());
+        /*
+         * NOTE - Phase 2 Story 5.5: this used formLogin() and asserted
+         * authenticated(), and it was passing for the wrong reason.
+         *
+         * authenticated() only asks whether SOMEBODY is signed in. This test is
+         * annotated @WithMockUser so the owner can create the account, and that
+         * mock user satisfied the assertion on its own. The sign-in could have done
+         * nothing at all and the test would still have been green, which means it
+         * never proved the thing its name claims.
+         *
+         * Checking the answer names the new account is what makes it real. The mock
+         * user cannot produce that body.
+         */
+        mockMvc.perform(post("/api/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"ashketchum\",\"password\":\"pikachu2026\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("ashketchum"))
+                .andExpect(jsonPath("$.personName").value("Ash Ketchum"))
+                .andExpect(jsonPath("$.role").value("PLAYER"));
     }
 
     // -------------------------------------------------------------------------
