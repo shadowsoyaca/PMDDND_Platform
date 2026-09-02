@@ -1,6 +1,6 @@
 package com.pmd.dndplatform.user;
 
-import java.util.Map;
+import com.pmd.dndplatform.user.dto.SignedInAccount;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -36,12 +36,12 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * WHY NOT THE WHOLE USER RECORD
  *
- * This deliberately returns three fields rather than the User object. Returning
+ * This returns three fields rather than the User object. Returning
  * the entity would hand out the password hash and the account's internal id,
  * neither of which the browser has any use for. Naming the fields one by one
  * means a column added to the table later cannot leak by accident.
  *
- * DEFERRED to Phase 2 Story 5.5: once sign-in has an endpoint that answers with
+ * Phase 2 Story 5.5: Once a sign-in has an endpoint that answers with
  * data instead of a redirect, the login screen will not need to call this
  * straight after signing in. This address stays useful on its own, though, for
  * any screen that needs to know who is looking at it.
@@ -56,7 +56,7 @@ public class CurrentUserController {
     }
 
     @GetMapping("/api/me")
-    public ResponseEntity<Map<String, String>> currentUser(Authentication authentication) {
+    public ResponseEntity<SignedInAccount> currentUser(Authentication authentication) {
         /*
          * Reaching this method at all means SecurityConfig already accepted the
          * request, so there is a session. This check is a backstop rather than a
@@ -80,10 +80,13 @@ public class CurrentUserController {
                 .orElseThrow(() -> new IllegalStateException(
                         "Signed-in account no longer exists: " + username));
 
-        return ResponseEntity.ok(Map.of(
-                "username", user.getUsername(),
-                "personName", user.getPersonName(),
-                "role", user.getRole().name()
-        ));
+        /*
+         * NOTE - Phase 2 Story 5.5: this was a hand-built Map of the same three
+         * fields. Story 5.5 added SignedInAccount for the sign-in answer, which has
+         * to carry exactly this shape so the screens do not have to learn a second
+         * one, and two independent definitions of one payload is how they end up
+         * disagreeing. The JSON produced is identical.
+         */
+        return ResponseEntity.ok(SignedInAccount.from(user));
     }
 }

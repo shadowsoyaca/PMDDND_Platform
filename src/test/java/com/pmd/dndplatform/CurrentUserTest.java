@@ -14,9 +14,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
@@ -50,9 +51,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * HOW THE SESSION IS CARRIED
  *
  * MockMvc treats every request as unrelated to the last one, which is not how a
- * browser behaves. formLogin() produces a request holding a session, so each test
+ * browser behaves. The sign-in produces a request holding a session, so each test
  * pulls that session out and attaches it to the next request by hand. That is the
  * stand-in for the browser sending its JSESSIONID cookie back.
+ *
+ * NOTE - Phase 2 Story 5.5: that sign-in used to be Spring's formLogin() helper.
+ * Form login is gone, so the helper below posts JSON to /api/login instead, which
+ * is what the login screen does. Nothing else about these tests changed.
  *
  * @Transactional rolls back everything each test wrote, so accounts created here
  * never leak into another test or survive the run.
@@ -104,7 +109,22 @@ class CurrentUserTest {
      * accept that concrete type.
      */
     private MockHttpSession signIn(String username, String password) throws Exception {
-        return (MockHttpSession) mockMvc.perform(formLogin().user(username).password(password))
+        /*
+         * NOTE - Phase 2 Story 5.5: this used Spring's formLogin() helper until form
+         * login was removed. It now goes through the real endpoint the login screen
+         * uses, which is the point: this helper exists so the tests below sign in
+         * the way a browser does, and a browser posts JSON to /api/login.
+         *
+         * The status is checked as well as authenticated(). authenticated() only
+         * asks whether somebody is signed in, not whether this request is what
+         * signed them in, so on its own it can pass for the wrong reason.
+         */
+        return (MockHttpSession) mockMvc.perform(post("/api/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username
+                                + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
                 .andExpect(authenticated())
                 .andReturn()
                 .getRequest()

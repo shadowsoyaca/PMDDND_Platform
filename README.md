@@ -352,9 +352,13 @@ src/main/java/com/pmd/dndplatform/
         SecurityConfig.java       - Spring Security setup: BCrypt, database-backed
                                     login, default-deny on every route,
                                     localhost-only /health, OWNER-only /api/admin,
-                                    form login pointed at the React screen, the
-                                    permitted list of frontend files, and the
-                                    cookie-based CSRF token
+                                    the permitted list of frontend files, and the
+                                    cookie-based CSRF token.
+                                    <!-- NOTE: Phase 2 Story 5.5 - form login was
+                                    removed here. -->
+                                    Also names the entry point that sends a
+                                    logged-out visitor to the login screen, which
+                                    used to come free with form login
         WebConfig.java            - forwards the React app's own addresses to
                                     index.html, so they survive being typed in
                                     or reloaded
@@ -379,11 +383,24 @@ src/main/java/com/pmd/dndplatform/
         UserAdminController.java        - the /api/admin/users endpoints
         CurrentUserController.java      - /api/me: answers who is signed in, and
                                           is refused when nobody is
+        <!-- NOTE: Phase 2 Story 5.5 - new file, replacing Spring's form login. -->
+        LoginController.java            - /api/login: signs somebody in and says
+                                          which of three things happened, rather
+                                          than answering everything with the same
+                                          redirect. Also does by hand the three
+                                          jobs the form login filter used to do:
+                                          replacing the session id, replacing the
+                                          CSRF token, and saving the session
 
         dto/
             CreateUserRequest.java  - incoming: new account fields
             UpdateUserRequest.java  - incoming: person-name change
             UserSummary.java        - outgoing: safe account fields (never the hash)
+            <!-- NOTE: Phase 2 Story 5.5 - two new files. -->
+            LoginRequest.java       - incoming: the username and password, as JSON
+            SignedInAccount.java    - outgoing: who you are signed in as. Used by
+                                      both /api/login and /api/me, so one payload
+                                      has one definition
 
     tools/
         PasswordHashGenerator.java - dev helper, not part of the running app.
@@ -512,6 +529,11 @@ frontend/                       - the React application (Phase 2 Story 4)
                                   apart, including a bounce that looks successful
             http.ts             - Phase 2 Story 5. fetch with a ten second limit,
                                   and telling a CSRF refusal from a permission one
+            auth.ts             - Phase 2 Story 5.5. Signing in, and turning the
+                                  endpoint's three answers into three results.
+                                  Kept out of the screen so it can be tested on
+                                  its own and reused by the next screen that
+                                  needs it
 
             accounts.test.ts    - Phase 2 Story 5. Guards a real fault: a removal
             http.test.ts          that reported success while the account stayed
@@ -610,7 +632,7 @@ Story 4.8 (Both test suites run on every pull request) ✅
 
 Story 5 (Owner user management screen and role-based landing) ✅
 
-Story 5.5 (Replace form login with a JSON endpoint) ⬜
+Story 5.5 (Replace form login with a JSON endpoint) ✅
 
 Stories 6a–6d (Device-bound passkey cluster) ⏸ deferred — needs the domain, see below
 

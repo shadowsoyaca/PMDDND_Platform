@@ -4,16 +4,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,15 +71,41 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    /*
+     * NOTE - Phase 2 Story 5.5: these two used Spring's formLogin() helper, which
+     * posted a form to /login. Form login is gone, so they now go through the
+     * endpoint the login screen actually uses.
+     *
+     * What they prove is unchanged: the right password gets in and the wrong one
+     * does not, against a real row in the database. The status is checked as well
+     * as the outcome, because authenticated() only asks whether somebody is signed
+     * in rather than whether this request is what signed them in.
+     *
+     * JsonLoginTest covers the endpoint's own contract, the response bodies and all
+     * three status codes. These two stay here because they are about the security
+     * configuration as a whole, which is what this file is for.
+     */
+    private String credentials(String username, String password) {
+        return "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
+    }
+
     @Test
     void correctPassword_logsIn() throws Exception {
-        mockMvc.perform(formLogin().user(TEST_USER).password(TEST_PASSWORD))
+        mockMvc.perform(post("/api/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials(TEST_USER, TEST_PASSWORD)))
+                .andExpect(status().isOk())
                 .andExpect(authenticated());
     }
 
     @Test
     void wrongPassword_isRejected() throws Exception {
-        mockMvc.perform(formLogin().user(TEST_USER).password("not-the-password"))
+        mockMvc.perform(post("/api/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials(TEST_USER, "not-the-password")))
+                .andExpect(status().isUnauthorized())
                 .andExpect(unauthenticated());
     }
 

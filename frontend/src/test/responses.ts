@@ -39,7 +39,6 @@ export function jsonResponse(body: unknown): Response {
 /*
  * An answer carrying HTML, with a status of 200.
  *
- * This is the awkward one, and the reason both screens check content types.
  * When there is no session, Spring answers a request with a redirect to the
  * login screen. fetch follows that redirect by itself and does not report that
  * it did, so what reaches the calling code is the login page's HTML with a
@@ -94,6 +93,30 @@ export function forbiddenResponse(): Response {
 export function csrfRefusedResponse(): Response {
     return new Response(JSON.stringify({ reason: "csrf" }), {
         status: 403,
+        headers: { "Content-Type": "application/json" },
+    });
+}
+
+/*
+ * NOTE - Phase 2 Story 5.5: a refused sign-in, status 401.
+ *
+ * The fourth distinct refusal, and the newest. Before this story a refused
+ * sign-in arrived as a redirect that said nothing, so the login screen had to ask
+ * /api/me afterwards to work out what had happened. /api/login answers 401 with a
+ * reason instead.
+ *
+ * 401 rather than 403 matters. In this application 403 means "signed in and not
+ * allowed", which is permanent, and 401 means "those credentials were not
+ * accepted", which is not. A screen that treated them the same would tell somebody
+ * who mistyped a password that they lack permission.
+ *
+ * The reason is one fixed word for every way of failing: wrong username, wrong
+ * password, disabled account. Saying which would tell an attacker which usernames
+ * exist.
+ */
+export function badCredentialsResponse(): Response {
+    return new Response(JSON.stringify({ reason: "bad-credentials" }), {
+        status: 401,
         headers: { "Content-Type": "application/json" },
     });
 }

@@ -45,19 +45,32 @@ import title from "@/assets/title.png";
 import badge from "@/assets/badge.png";
 
 /*
- * NOTE - Phase 2 Story 5: readCsrfToken used to be written out here and again in
- * HomePage. Story 5 needs it in two further places, so it moved to lib/csrf.ts
- * before a third copy was made. The explanation of what the token is for went
- * with it.
+ * NOTE - Phase 2 Story 5.5: everything this screen used to do in order to sign
+ * somebody in now lives in lib/auth.ts, and the two Story 5 notes that stood here
+ * went with it.
  *
- * NOTE - Phase 2 Story 5: fetchCurrentUser replaces the hand-written check
- * further down, which asked /api/me whether the sign-in had worked and read the
- * content type to be sure the answer was real. That reasoning now lives in
- * lib/currentUser.ts, next to the one copy of the code.
+ * This screen used to send the request itself and then ask /api/me whether a
+ * session had appeared, because form login answered with a redirect that said
+ * nothing either way. /api/login answers with the account, so the second request
+ * is gone and so is the guessing. What is left here is the form and the wording.
  */
-import { readCsrfToken } from "@/lib/csrf";
-import { fetchCurrentUser } from "@/lib/currentUser";
-import { fetchWithTimeout, isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
+import { signIn } from "@/lib/auth";
+
+/*
+ * What somebody is told when the server would not accept their credentials.
+ *
+ * Deliberately vague, and that is not laziness. Wrong username, wrong password and
+ * a disabled account all say this, because saying which one it was would tell
+ * whoever is asking which usernames exist on this server. The improvement this
+ * story brings is telling a refused sign-in apart from a failed request, not
+ * narrowing down why it was refused.
+ *
+ * It is a constant rather than written inline because lib/auth.ts deliberately
+ * returns no message for this case, which makes this the only place the wording
+ * lives.
+ */
+const REFUSED_MESSAGE =
+    "That username and password did not match. Please try again.";
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -69,87 +82,58 @@ export default function LoginPage() {
     const [searchParams] = useSearchParams();
 
     /*
-     * SecurityConfig sends the browser back here with ?error after a rejected
-     * login and ?logout after signing out. Reading them here means those two
-     * cases still show a message even when the round trip went through the
-     * browser rather than through the fetch below.
+     * Signing out still sends the browser back here with ?logout, through a real
+     * redirect rather than through a fetch, so this stays.
+     *
+     * NOTE - Phase 2 Story 5.5: ?error is gone. It came from form login's
+     * failureUrl setting, and form login has been deleted, so nothing sends the
+     * browser to /login?error any more. The branch that read it was dead code that
+     * still looked live, which on a login screen is worse than useless: somebody
+     * would keep maintaining it.
      */
     const loggedOut = searchParams.has("logout");
-    const redirectError = searchParams.has("error");
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
         setError("");
         setSubmitting(true);
 
-        try {
+        /*
+         * NOTE - Phase 2 Story 5.5: one request, and it says which of three things
+         * happened.
+         *
+         * This used to be two. The first sent the credentials and came back with a
+         * redirect that meant nothing, and the second asked /api/me whether a
+         * session had appeared, which was the only way to find out. A wrong
+         * password and an unreachable server were indistinguishable, so one vague
+         * message had to cover both.
+         *
+         * There is no try block because signIn never throws. Every way it can fail
+         * comes back as a result with a message already chosen, which is the whole
+         * reason that logic sits in lib/auth.ts rather than here.
+         */
+        const result = await signIn(username, password);
+
+        if (result.kind === "ok") {
             /*
-             * The address is relative, with no host in front of it. That is what
-             * lets the switch from a bare IP address to a real domain happen
-             * with no code change: the browser sends this to whatever host it
-             * loaded the page from.
-             *
-             * The body is form-encoded rather than JSON because Spring's built-in
-             * form login reads two named fields, exactly as its own plain login
-             * page sent them.
-             *
-             * The browser is left to follow the redirect that comes back. That
-             * is what lets it store the session cookie: a response the browser
-             * has been told not to process is one it cannot take a cookie from.
+             * The answer names the account, and this screen deliberately ignores
+             * it. Both roles are sent to the same address, and the screen at that
+             * address decides what to draw, so this one never has to know who
+             * signed in.
              */
-            const body = new URLSearchParams();
-            body.set("username", username);
-            body.set("password", password);
-
-            await fetchWithTimeout("/login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "X-XSRF-TOKEN": readCsrfToken(),
-                },
-                body,
-            });
-
-            /*
-             * Form login answers with a redirect whether the sign-in worked or
-             * not, so the first request cannot report which happened. What can
-             * is asking the server who we are now. An account back means there
-             * is a session; null means there is not, and the password was wrong.
-             *
-             * DEFERRED to Phase 2 Story 5.5: an endpoint that answers with data
-             * instead of a redirect. That would make this second request
-             * unnecessary and, more importantly, would let this screen tell a
-             * wrong password apart from a server that cannot be reached. Until
-             * then the message below has to cover both.
-             *
-             * NOTE - Phase 2 Story 5: the answer is not read for the role here.
-             * Both roles are sent to the same address and that screen decides
-             * what to draw, so this screen never has to know who signed in.
-             */
-            const account = await fetchCurrentUser();
-
-            if (account) {
-                navigate("/");
-                return;
-            }
-
-            setError("That username and password did not match. Please try again.");
-        } catch (failure) {
-            /*
-             * NOTE - Phase 2 Story 5: a request that ran out of time is now told
-             * apart from one that never connected. They are different faults and
-             * they lead to different next steps: one means the server is not
-             * there, the other means it is there and struggling, and trying again
-             * shortly is reasonable.
-             */
-            setError(
-                isTimeout(failure)
-                    ? `${TIMEOUT_MESSAGE} Please try again.`
-                    : "Could not reach the server. Please try again.",
-            );
-        } finally {
-            setSubmitting(false);
+            navigate("/");
+            return;
         }
+
+        /*
+         * "refused" carries no message on purpose, because what to tell somebody
+         * whose credentials were rejected is a decision rather than a description
+         * of a fault. Every other failure arrives with its own wording: a rejected
+         * token names the reload that fixes it, a timeout says the server is slow,
+         * and an unreachable server says it could not be reached.
+         */
+        setError(result.kind === "refused" ? REFUSED_MESSAGE : result.message);
+        setSubmitting(false);
     }
 
     return (
@@ -189,13 +173,12 @@ export default function LoginPage() {
                         </p>
                     )}
 
-                    {(error || redirectError) && (
+                    {error && (
                         <p
                             role="alert"
                             className="mb-4 rounded-lg bg-red-100 px-4 py-3 text-sm text-red-900"
                         >
-                            {error ||
-                                "That username and password did not match. Please try again."}
+                            {error}
                         </p>
                     )}
 

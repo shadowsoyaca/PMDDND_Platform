@@ -1,15 +1,30 @@
 package com.pmd.dndplatform.config;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
+import org.springframework.security.web.context.DelegatingSecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 
 /*
  * Phase 2 Story 2 built this. Phase 2 Story 3 changes two things:
@@ -52,8 +67,129 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /*
+     * NOTE - Phase 2 Story 5.5: five beans below, all of them here because
+     * LoginController needs the same objects the filter chain uses.
+     *
+     * Before this story these were built inline where they were needed, which was
+     * fine while only one thing used each. A controller now signs people in, and
+     * it has to share them rather than make its own. Two CSRF token repositories
+     * would write and check different cookies; two context repositories would save
+     * a session the next request does not look in. Both faults are silent.
+     */
+
+    /*
+     * Where the CSRF token is kept.
+     *
+     * Returns the cookie-based repository, readable by JavaScript.
+     *
+     * withHttpOnlyFalse is required and is not a weakening. The frontend has to
+     * read this cookie to echo it back in a header, and that echo is the whole
+     * mechanism: a hostile site can make the browser send a request, but
+     * same-origin rules stop it reading this site's cookies, so it cannot supply a
+     * matching token. JSESSIONID stays httpOnly and unreadable.
+     */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public CsrfTokenRepository csrfTokenRepository() {
+        return CookieCsrfTokenRepository.withHttpOnlyFalse();
+    }
+
+    /*
+     * How the token is put onto the request for other code to find.
+     *
+     * Returns the plain attribute handler.
+     *
+     * This does NOT cause the token to be written, which this file used to claim.
+     * It puts a supplier on the request, and nothing is created until something
+     * asks. CsrfCookieFilter is what asks. See the note further down.
+     */
+    @Bean
+    public CsrfTokenRequestHandler csrfTokenRequestHandler() {
+        return new CsrfTokenRequestAttributeHandler();
+    }
+
+    /*
+     * Where a signed-in session is stored and read back.
+     *
+     * Returns the same pairing Spring Security uses by default: the request
+     * attribute copy for the rest of the current request, and the HTTP session for
+     * every request after it.
+     *
+     * It is declared here rather than left to the default so LoginController can be
+     * handed the identical object. The chain is told to use this one below. If the
+     * two ever differed, signing in would answer 200 and the next request would
+     * find nobody signed in, with nothing logged anywhere.
+     */
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new DelegatingSecurityContextRepository(
+                new RequestAttributeSecurityContextRepository(),
+                new HttpSessionSecurityContextRepository());
+    }
+
+    /*
+     * What must happen at the moment somebody authenticates.
+     *
+     * csrfTokenRepository - where the replacement token is written.
+     * csrfTokenRequestHandler - how that token is put onto the request.
+     *
+     * Returns the two strategies Spring's own login filter would have run.
+     *
+     * WHY THIS EXISTS AT ALL
+     *
+     * Until Phase 2 Story 5.5 the form login filter did both of these without
+     * anyone configuring them. That filter is gone, and a controller inherits
+     * nothing, so they are named here and handed to LoginController.
+     *
+     *   ChangeSessionIdAuthenticationStrategy issues a new session id, so an id the
+     *   browser was already carrying cannot be ridden in on. If no session exists
+     *   yet it does nothing, which is correct.
+     *
+     *   CsrfAuthenticationStrategy throws the old token away and writes a new one,
+     *   so a token picked up before signing in cannot be used afterwards.
+     *
+     * Both are Spring's classes rather than equivalents written here, because there
+     * is no version of this worth writing twice.
+     */
+    @Bean
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy(
+            CsrfTokenRepository csrfTokenRepository,
+            CsrfTokenRequestHandler csrfTokenRequestHandler) {
+
+        CsrfAuthenticationStrategy csrfStrategy =
+                new CsrfAuthenticationStrategy(csrfTokenRepository);
+        csrfStrategy.setRequestHandler(csrfTokenRequestHandler);
+
+        return new CompositeSessionAuthenticationStrategy(List.of(
+                new ChangeSessionIdAuthenticationStrategy(),
+                csrfStrategy));
+    }
+
+    /*
+     * The thing that checks a username and password.
+     *
+     * configuration - Spring Security's own assembly of it.
+     *
+     * Returns the manager already built from DatabaseUserDetailsService and the
+     * BCrypt encoder above.
+     *
+     * Raises Exception because that is what getAuthenticationManager declares.
+     *
+     * This existed before and was not reachable, because only Spring's own filters
+     * used it. LoginController calls it directly, so it has to be a bean.
+     */
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            CsrfTokenRepository csrfTokenRepository,
+            CsrfTokenRequestHandler csrfTokenRequestHandler,
+            SecurityContextRepository securityContextRepository) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
                 /*
@@ -61,7 +197,7 @@ public class SecurityConfig {
                  * machine itself (address 127.0.0.1 or its IPv6 form ::1). The
                  * deploy script checks /health locally on the server, so it
                  * still works. Requests from outside come in through Caddy
-                 * carrying the real visitor address, so they fail this check and
+                 * carrying the visitor address, so they fail this check and
                  * get bounced to the login page.
                  */
                 .requestMatchers("/health").access(
@@ -97,18 +233,26 @@ public class SecurityConfig {
                  * at an exact path, such as favicon.svg or robots.txt. Every
                  * file placed there sits at the root and needs its own line
                  * added below, or it will be redirected to the login page.
-                 *
-                 * The list is kept narrow on purpose. A broad rule such as
-                 * "permit anything that is not /api/" would never need
-                 * maintaining, but it would invert this file's default: new
-                 * routes would become public unless someone remembered to
-                 * protect them. Default-deny is worth the occasional new line.
                  */
                 .requestMatchers("/", "/index.html", "/assets/**",
                                  "/favicon.svg").permitAll()
 
                 // The login page is the only thing a logged-out visitor can reach.
                 .requestMatchers("/login").permitAll()
+
+                /*
+                 * NOTE - Phase 2 Story 5.5: the sign-in endpoint.
+                 *
+                 * It must be reachable without being signed in, which is the whole
+                 * point of it. That is not the same as unprotected: the CSRF filter
+                 * still demands a token, and LoginController answers 401 to any
+                 * credentials it does not accept.
+                 *
+                 * It sits under /api/ because it answers with data. /login is a
+                 * screen inside the React app, forwarded to index.html by WebConfig,
+                 * and one address should not be both a screen and an endpoint.
+                 */
+                .requestMatchers("/api/login").permitAll()
 
                 /*
                  * Account management. Being logged in is not enough - you must
@@ -127,33 +271,29 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             /*
-             * NOTE - Phase 2 Story 4: form login now points at the React screen.
+             * NOTE - Phase 2 Story 5.5: formLogin is GONE. This is the story that
+             * the Story 4 note here said would remove it.
              *
-             * Naming a loginPage stops Spring drawing its own plain grey page
-             * and makes it serve whatever answers at that address instead. The
-             * React app answers there, by way of the forwarding rule in
-             * WebConfig - /login is a screen inside the React app, not a file on
-             * disk, so without that rule this address would 404.
+             * It used to name /login as the login page and /login?error as where a
+             * refusal was sent. Both were redirects, which is the fault: a redirect
+             * carries no information the login screen can read, so a wrong password
+             * and an unreachable server arrived looking identical. LoginController
+             * answers /api/login with data instead.
              *
-             * How the sign-in itself works has NOT changed. The React form posts
-             * the same two fields, username and password, to the same address,
-             * exactly as Spring's own page did. Only the appearance is new.
+             * TWO THINGS CAME FREE WITH formLogin AND HAD TO BE REPLACED.
              *
-             * DEFERRED to Phase 2 Story 5.5: replacing this with an endpoint
-             * that speaks JSON. Form login answers with a redirect rather than
-             * data, so the frontend cannot tell a wrong password apart from an
-             * unreachable server, and the error message shown to a player has to
-             * stay vague as a result.
+             * Naming a loginPage also set the entry point bounces a logged out
+             * visitor to the login screen. Deleting formLogin without setting
+             * it explicitly would answer 403 to every logged-out request 
+             * instead of showing the login screen.
              *
-             * failureUrl carries ?error so the React screen knows to show its
-             * error message. logout() gives Story 4 its logout button; ?logout
-             * lets the screen say goodbye rather than looking like a failure.
+             * The second is in LoginController: replacing the session id and the
+             * CSRF token on sign-in, which that filter did on its own.
+             *
+             * logout() is untouched. It still answers a redirect, and the sign out
+             * button still expects one. Moving it to /api/logout for symmetry was
+             * considered and left alone, because this story did not ask for it.
              */
-            .formLogin(form -> form
-                .loginPage("/login")
-                .failureUrl("/login?error")
-                .permitAll()
-            )
             .logout(logout -> logout
                 .logoutSuccessUrl("/login?logout")
                 .permitAll()
@@ -189,9 +329,24 @@ public class SecurityConfig {
              * cookie was ever written. See CsrfCookieFilter at the bottom of this
              * method, which is what makes any of the above true in practice.
              */
+            /*
+             * NOTE - Phase 2 Story 5.5: these are the beans declared above rather
+             * than objects made here, so LoginController is handed the same pair.
+             * Two repositories would write one cookie and check another.
+             */
             .csrf(csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                .csrfTokenRepository(csrfTokenRepository)
+                .csrfTokenRequestHandler(csrfTokenRequestHandler)
+            )
+            /*
+             * NOTE - Phase 2 Story 5.5: the chain is told which context repository
+             * to use, so it is provably the same object LoginController saves a
+             * signed-in session to. This is Spring's own default pairing, named
+             * explicitly rather than left to be assumed, because "the default on
+             * both sides" stops being true the moment somebody changes one side.
+             */
+            .securityContext(securityContext -> securityContext
+                .securityContextRepository(securityContextRepository)
             )
             /*
              * NOTE - Phase 2 Story 5: refusals now say which kind they are.
@@ -207,6 +362,20 @@ public class SecurityConfig {
              * login screen, which is unchanged.
              */
             .exceptionHandling(handling -> handling
+                /*
+                 * NOTE - Phase 2 Story 5.5: this used to come free with formLogin's
+                 * loginPage setting, and had to be named once formLogin was
+                 * deleted. It is what sends a logged-out visitor to the login
+                 * screen rather than answering them 403.
+                 *
+                 * It also keeps /api/me answering a logged-out request with a
+                 * redirect to an HTML page, which lib/currentUser.ts depends on. It
+                 * checks the content type rather than the status, because fetch
+                 * follows that redirect on its own and hands back the login page's
+                 * HTML carrying a status of 200. LIVING_DOC.md records the two bugs
+                 * that behaviour caused.
+                 */
+                .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
                 .accessDeniedHandler(new DeniedReasonHandler())
             )
             /*
