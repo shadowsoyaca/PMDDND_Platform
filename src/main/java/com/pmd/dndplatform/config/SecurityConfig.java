@@ -14,7 +14,6 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.context.DelegatingSecurityContextRepository;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -54,6 +53,11 @@ import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
  *
  * Still unchanged: default-deny, BCrypt, no signup route, the OWNER rule on
  * /api/admin/, and the localhost-only /health rule.
+ *
+ * NOTE - Phase 2 Story 5.8: CsrfCookieFilter is gone. It used to be registered at
+ * the bottom of the filter chain and was what made the CSRF cookie exist. That
+ * job now belongs to one setter on the csrfTokenRequestHandler bean below, and
+ * the comment on that bean explains the whole mechanism.
  */
 @Configuration
 public class SecurityConfig {
@@ -97,15 +101,50 @@ public class SecurityConfig {
     /*
      * How the token is put onto the request for other code to find.
      *
-     * Returns the plain attribute handler.
+     * Returns the plain attribute handler with lazy token creation switched off.
      *
-     * This does NOT cause the token to be written, which this file used to claim.
-     * It puts a supplier on the request, and nothing is created until something
-     * asks. CsrfCookieFilter is what asks. See the note further down.
+     * NOTE - Phase 2 Story 5.8: the setter in this method is what makes the CSRF
+     * cookie exist. It looks like a line that does nothing. It is the opposite.
+     *
+     * WHAT THE DEFAULT DOES
+     *
+     * Out of the box the handler is lazy. It puts a supplier on the request, and
+     * the token is only created, and the cookie only written, if something asks
+     * for it. A React page never asks, so the cookie was never written and every
+     * first attempt at anything was refused while the second worked. Phase 2
+     * Story 5 answered that with CsrfCookieFilter, which asked on every request.
+     * Phase 2 Story 5.5 then found a filter cannot cover a token replaced inside
+     * a controller, which is exactly what signing in does, so LoginController had
+     * to ask as well. Two places had to remember, and a third would have been
+     * needed by the next story that replaced the token.
+     *
+     * WHAT A NULL NAME DOES
+     *
+     * The handler places the token on the request under a name. With the name
+     * set to null it has to ask the token for its parameter name in order to
+     * choose one, and that question is what resolves the token: load the cookie,
+     * and if there is none, generate one and write it. Checked in the Spring
+     * Security 6.5.11 bytecode rather than taken on trust. Nothing else changes:
+     * the name it falls back to is "_csrf", which is the default anyway.
+     *
+     * The CSRF filter calls this handler on every request, so a browser arriving
+     * without a cookie is given one. CsrfAuthenticationStrategy calls it again on
+     * sign-in with the replacement token, so the fresh cookie is written inside
+     * the controller with nothing further having to remember to ask.
+     *
+     * HOW IT WAS PROVEN
+     *
+     * Before this line was committed: with the filter and the controller's asking
+     * line deleted and this setter absent, CsrfCookieTest fails on the login
+     * screen writing no cookie. With the setter present it passes, unedited. That
+     * test is the guard on this line. Delete the line and the two-attempt fault
+     * comes back with nothing logged, and the test is what will say so.
      */
     @Bean
     public CsrfTokenRequestHandler csrfTokenRequestHandler() {
-        return new CsrfTokenRequestAttributeHandler();
+        CsrfTokenRequestAttributeHandler handler = new CsrfTokenRequestAttributeHandler();
+        handler.setCsrfRequestAttributeName(null);
+        return handler;
     }
 
     /*
@@ -326,8 +365,12 @@ public class SecurityConfig {
              * NOTE - Phase 2 Story 5: this block alone is NOT enough, and the
              * paragraph above overstates what it does. The token described here
              * is only created when something asks for it, and nothing did, so no
-             * cookie was ever written. See CsrfCookieFilter at the bottom of this
-             * method, which is what makes any of the above true in practice.
+             * cookie was ever written.
+             *
+             * NOTE - Phase 2 Story 5.8: Story 5 answered that with a filter that
+             * asked on every request, registered at the bottom of this method. It
+             * is gone. The handler bean above has lazy creation switched off, and
+             * the comment on it explains the whole mechanism.
              */
             /*
              * NOTE - Phase 2 Story 5.5: these are the beans declared above rather
@@ -377,22 +420,7 @@ public class SecurityConfig {
                  */
                 .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
                 .accessDeniedHandler(new DeniedReasonHandler())
-            )
-            /*
-             * NOTE - Phase 2 Story 5: this is what makes the CSRF cookie exist.
-             *
-             * Without it the token is created only when something asks for it,
-             * and a React page never asks. The measured result was that every
-             * first attempt failed and every second attempt worked: signing in
-             * took two tries, signing out took two tries, and so did creating an
-             * account. CsrfCookieFilter explains the whole mechanism.
-             *
-             * Placed after BasicAuthenticationFilter so it runs late enough to
-             * see the token Spring Security put on the request, and, more
-             * importantly, late enough on a sign-in to write the NEW token that
-             * replaces the one authentication throws away.
-             */
-            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class);
+            );
 
         return http.build();
     }

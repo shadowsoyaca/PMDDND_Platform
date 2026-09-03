@@ -223,8 +223,8 @@ story. Neither one runs the other, so running only one proves only half.
 .\mvnw.cmd test
 ```
 
-<!-- NOTE: Phase 2 Story 5 - was 30. -->
-45 tests, about forty seconds. This does not build or test the frontend.
+<!-- NOTE: Phase 2 Story 5.8 - was 45. -->
+52 tests, about forty seconds. This does not build or test the frontend.
 
 One of them, `CsrfCookieTest`, starts a real server on a real port rather than
 using MockMvc, which is why the suite takes a little longer than it used to. The
@@ -237,8 +237,8 @@ the next, and MockMvc does not carry them.
 npm test
 ```
 
-<!-- NOTE: Phase 2 Story 5 - was 9. -->
-54 tests, about fifteen seconds. Runs every `*.test.ts` and `*.test.tsx` file anywhere
+<!-- NOTE: Phase 2 Story 5.8 - was 54. -->
+60 tests, about fifteen seconds. Runs every `*.test.ts` and `*.test.tsx` file anywhere
 under `frontend/`, so a new test file is picked up with no configuration to
 edit. It runs once and exits with a pass or fail code rather than watching.
 
@@ -358,15 +358,17 @@ src/main/java/com/pmd/dndplatform/
                                     removed here. -->
                                     Also names the entry point that sends a
                                     logged-out visitor to the login screen, which
-                                    used to come free with form login
+                                    used to come free with form login.
+                                    <!-- NOTE: Phase 2 Story 5.8 - CsrfCookieFilter
+                                    was deleted and this line replaces its entry. -->
+                                    Switches off Spring's lazy CSRF token
+                                    creation, which is what makes the token
+                                    cookie exist at all. Without that one setting
+                                    every first attempt at anything was refused
+                                    while the second worked
         WebConfig.java            - forwards the React app's own addresses to
                                     index.html, so they survive being typed in
                                     or reloaded
-        CsrfCookieFilter.java     - Phase 2 Story 5. Asks for the CSRF token on
-                                    every request, which is what causes the
-                                    cookie to be written. Without it the token
-                                    was never created, and every first attempt at
-                                    anything was refused while the second worked
         DeniedReasonHandler.java  - Phase 2 Story 5. Says WHY a request was
                                     refused, so the screens can tell "you are not
                                     allowed", which is permanent, from "your CSRF
@@ -447,6 +449,11 @@ src/test/java/com/pmd/dndplatform/
                                        on a real port, not MockMvc, because what
                                        it tests is cookies surviving between
                                        requests and MockMvc does not carry them
+    JsonLoginTest.java               - Phase 2 Story 5.5. /api/login answers with
+                                       data rather than a redirect: 200 with the
+                                       account, 401 for every refusal alike, 403
+                                       for a rejected token. Also proves the
+                                       answer never echoes the password back
 
 src/test/resources/
     application-test.yaml - points tests at the pmd_dnd_test database
@@ -538,6 +545,10 @@ frontend/                       - the React application (Phase 2 Story 4)
             accounts.test.ts    - Phase 2 Story 5. Guards a real fault: a removal
             http.test.ts          that reported success while the account stayed
                                   in the database
+            auth.test.ts        - Phase 2 Story 5.5. The four answers a sign-in
+                                  can get become four different results, so a
+                                  wrong password and an unreachable server no
+                                  longer arrive looking identical
 
         assets/                 - login_backdrop.png, title.png, badge.png.
                                   Imported from TypeScript so the build
@@ -634,6 +645,10 @@ Story 5 (Owner user management screen and role-based landing) ✅
 
 Story 5.5 (Replace form login with a JSON endpoint) ✅
 
+<!-- NOTE: Phase 2 Story 5.8 - new line. Its own story rather than part of 5.5,
+     so that a failure on the server has one suspect rather than two. -->
+Story 5.8 (Turn off lazy CSRF token creation and delete CsrfCookieFilter) ✅
+
 Stories 6a–6d (Device-bound passkey cluster) ⏸ deferred — needs the domain, see below
 
 Story 7 (Password change and reset) ⏸ deferred — scoped out on purpose, see below
@@ -643,6 +658,11 @@ Story 8 (Enable and disable accounts) ⏸ deferred — scoped out on purpose, se
 Story 9 (Grant and revoke DM access) ⏸ deferred — scoped out on purpose, see below
 
 Story 10 (Theme the login screen) ⬜
+
+<!-- NOTE: Phase 2 Story 5.8 - new line. Carded during Story 5.5 and placed
+     before Stories 7, 8 and 9 so each adds its data shapes to a specification
+     rather than typing them twice. -->
+Story 13 (OpenAPI specification and generated frontend types) ⬜ planned next after Story 5.8
 
 
 ---
