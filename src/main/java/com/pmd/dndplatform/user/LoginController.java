@@ -18,7 +18,6 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -144,28 +143,17 @@ public class LoginController {
         sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
 
         /*
-         * And this line is what makes job 2 actually happen. It looks deletable and
-         * it is not, in the same way and for the same reason as the line inside
-         * CsrfCookieFilter.
+         * NOTE - Phase 2 Story 5.8: a line used to follow here that asked for the
+         * new token, because CsrfAuthenticationStrategy deferred writing it and a
+         * controller runs after every filter that might have asked. Without it the
+         * sign-in answer deleted the token cookie and put nothing in its place,
+         * which was measured on the first run of CsrfCookieTest against this class.
          *
-         * CsrfAuthenticationStrategy deletes the old token cookie and then DEFERS
-         * the new one, writing it only if something asks. CsrfCookieFilter is the
-         * thing that normally asks, and it has already run by the time a controller
-         * is reached, because filters run first. So without this line the sign-in
-         * answer deletes the token and puts nothing in its place, and the browser is
-         * left holding an empty cookie.
-         *
-         * That was measured, not guessed. On the first run of CsrfCookieTest against
-         * this controller the sign-in answer carried XSRF-TOKEN with an empty value,
-         * and the next request was refused with 403. It is exactly the fault Phase 2
-         * Story 5 fixed, reappearing somewhere new, and it is just as quiet: signing
-         * in works, and the first thing done afterwards fails.
-         *
-         * The value is deliberately not used. Asking for it is the whole point.
+         * It is gone. The handler bean in SecurityConfig now has lazy creation
+         * switched off, so the strategy call above writes the fresh cookie itself.
+         * CsrfCookieTest checks that the sign-in answer carries a new, non-empty
+         * token and would fail if that stopped being true.
          */
-        if (httpRequest.getAttribute(CsrfToken.class.getName()) instanceof CsrfToken freshToken) {
-            freshToken.getToken();
-        }
 
         /*
          * Job 3. createEmptyContext rather than reading the current one, because
