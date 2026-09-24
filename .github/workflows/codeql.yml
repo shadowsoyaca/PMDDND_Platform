@@ -1,0 +1,76 @@
+# CodeQL static analysis for Java and for JavaScript and TypeScript.
+# Runs on pull requests to main, on every push to main, and once a week.
+# Findings appear on the pull request and under the repository's Security tab.
+
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Every Monday at 06:00 UTC.
+    - cron: '0 6 * * 1'
+
+# Read access to clone the repository, write access to upload findings.
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+
+  # Branch protection on main matches this job by its "name:" field.
+  java:
+    name: CodeQL Java
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # Starts recording the compiler. The build below runs between this
+      # step and the analysis step.
+      - name: Start CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      # Compiles the Java sources only. Stops before the prepare-package
+      # phase, so no Node download, no frontend bundle, and no tests.
+      - name: Compile the backend
+        run: ./mvnw --batch-mode -DskipTests compile
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:java-kotlin
+
+  # Branch protection on main matches this job by its "name:" field.
+  javascript:
+    name: CodeQL JavaScript and TypeScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Reads the source directly. No build is needed for these languages.
+      - name: Start CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
