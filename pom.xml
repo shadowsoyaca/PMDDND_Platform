@@ -42,23 +42,10 @@
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
 
-	<!-- NOTE: Phase 2 Story 3.5. Was 0.0.1-SNAPSHOT, which never changed and so
-	     identified nothing. The number is now phase.story.child, so this build is
-	     Phase 2 Story 5. Bump it on each story branch.
-
-	     This is what names the built file: target/dndplatform-2.5.0.jar. The
-	     deploy script reads the version back out of that filename, so this is the
-	     single place the version is set.
-
-	     NOTE: Phase 2 Story 4.5 - it is now also the only place /health gets its
-	     version from, by way of the build-info execution further down. Before
-	     this story the endpoint carried its own copy typed in by hand, and the
-	     two had drifted apart.
-
-	     -SNAPSHOT dropped on purpose. It means "unfinished, may change underneath
-	     you", which is the wrong thing to say about a build you deploy and might
-	     later roll back to. -->
-	<version>2.5.8</version>
+	<!-- phase.story.child, bumped on each story branch. Names the built file,
+	     target/dndplatform-2.5.9.jar, which the deploy script and the build-info
+	     execution further down both read the version from. -->
+	<version>2.5.9</version>
 
 	<!-- ======================================================================
 	     PROJECT METADATA
