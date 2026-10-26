@@ -19,15 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /*
- * The non-public path the owner uses to manage accounts.
- *
- * Every address here starts with /api/admin/, and SecurityConfig requires the
- * OWNER role for everything under /api/admin/. A logged-out visitor is turned
- * away; a logged-in PLAYER gets 403 Forbidden. There is no signup route
- * anywhere in the app, so no one can make their own account.
- *
- * In Story 4 the DM's Manage Accounts screen calls exactly these four
- * addresses. Nothing here has to change when it does.
+ * The endpoints the owner uses to manage accounts. Everything here sits under
+ * /api/admin/, which SecurityConfig restricts to the OWNER role.
  */
 @RestController
 @RequestMapping("/api/admin/users")
@@ -39,19 +32,21 @@ public class UserAdminController {
         this.userAdminService = userAdminService;
     }
 
-    /* GET /api/admin/users  -> the Manage Accounts table. */
+    /*
+     * Lists every account.
+     *
+     * @return (List<UserSummary>) all accounts, newest first.
+     */
     @GetMapping
     public List<UserSummary> listUsers() {
         return userAdminService.listUsers();
     }
 
     /*
-     * POST /api/admin/users  -> the Add User form.
+     * Creates a player account and answers 201.
      *
-     * @Valid runs the checks on CreateUserRequest first. If any fail, this
-     * method never runs and the caller gets 400.
-     *
-     * 201 CREATED is the correct answer for "a new thing now exists".
+     * @param request (CreateUserRequest) the new account's details, validated before this runs.
+     * @return (UserSummary) the account that was created.
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -59,7 +54,13 @@ public class UserAdminController {
         return userAdminService.createUser(request);
     }
 
-    /* PUT /api/admin/users/{id}  -> fix a person name. */
+    /*
+     * Changes the person name on an account.
+     *
+     * @param id (Long) the account to change.
+     * @param request (UpdateUserRequest) the new person name.
+     * @return (UserSummary) the account after the change.
+     */
     @PutMapping("/{id}")
     public UserSummary updateUser(@PathVariable Long id,
                                   @Valid @RequestBody UpdateUserRequest request) {
@@ -67,13 +68,10 @@ public class UserAdminController {
     }
 
     /*
-     * DELETE /api/admin/users/{id}  -> remove an account.
+     * Deletes an account and answers 204.
      *
-     * Spring fills in the Authentication argument with whoever is logged in, so
-     * the service can refuse to let you delete yourself.
-     *
-     * 204 NO CONTENT is the correct answer for "done, and there is nothing to
-     * send back".
+     * @param id (Long) the account to delete.
+     * @param authentication (Authentication) the caller's identity, used by the self-delete guard.
      */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

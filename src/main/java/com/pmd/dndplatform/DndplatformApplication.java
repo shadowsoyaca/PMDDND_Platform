@@ -3,9 +3,9 @@ package com.pmd.dndplatform;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 /*
-@SpringBootApplication: Indicates that this is a Spring Boot application, enabling
-auto-configuration, component scanning, and other Spring Boot features.
-*/
+ * The entry point of the application. Starts Spring Boot, which scans this
+ * package and everything under it for components.
+ */
 @SpringBootApplication
 public class DndplatformApplication {
 

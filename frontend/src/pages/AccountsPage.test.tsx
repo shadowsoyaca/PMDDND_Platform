@@ -1,37 +1,6 @@
 /*
- * Phase 2 Story 5: tests for the account table.
- *
- * WHAT THESE PROVE
- *
- * The card asks for a table, a search box, sorting on every column, three forms,
- * and a refusal for anyone who is not the owner. None of those can be checked by
- * calling a function, because what they amount to is which rows are on the screen
- * and in what order, so these tests drive the screen the way a person does and
- * then read the table back.
- *
- * HOW ROW ORDER IS CHECKED
- *
- * By reading the first cell of every row, which is the username, and comparing
- * the resulting list. Checking that a particular name is on the screen would pass
- * whatever the order, and the order is the entire point of a sort.
- *
- * WHY THE TEST DATA IS SHAPED AS IT IS
- *
- * Three accounts whose usernames, person names, roles and dates all sort into
- * different orders. If two of those orders matched, a sort that read the wrong
- * column would still pass.
- *
- * The times are all noon UTC. The date shown is worked out in the machine's own
- * time zone, and a time near midnight would land on a different day depending on
- * where the test is run, so a test that passed here would fail elsewhere.
- *
- * WHY THE FETCH STAND-IN ANSWERS BY ADDRESS AND METHOD
- *
- * The screen makes two requests before it can draw anything, the accounts and
- * who is signed in, and then one more for each change. A stand-in that gave the
- * same answer to all of them would hand the account list back as the signed-in
- * person, and the test would still pass while proving nothing about which row is
- * the owner's own.
+ * Tests for the account table screen. They drive the screen the way a person
+ * does and read the table back, checking row order through the username column.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -92,14 +61,11 @@ const CREATED_ACCOUNT = {
 /* What the server answers when the edit form succeeds. */
 const RENAMED_ACCOUNT = { ...ACCOUNTS[2], personName: "Misty W." };
 
-/*
- * Answers every request the screen makes.
+/**
+ * Answers every request the screen makes, routed by both address and method.
  *
- * changes - optional replacements for the three change requests, so a test can
- *           make one of them fail without describing the other four.
- *
- * Returns the stand-in itself, so a test can check what was sent, or that
- * nothing was.
+ * @param changes (object) optional replacements for the create, update and remove answers.
+ * @return (Mock) the fetch stand-in, so a test can check what was sent.
  */
 function serveAccounts(
     changes: { create?: Response; update?: Response; remove?: Response } = {},
@@ -135,11 +101,11 @@ function renderAccountsPage() {
     );
 }
 
-/*
- * Reads the username out of every row, in the order they appear.
+/**
+ * Reads the username out of every data row, in the order they appear.
+ * The slice drops the heading row, which the row role returns as well.
  *
- * The first row is dropped because it is the heading row, which the table role
- * counts as a row like any other.
+ * @return (string[]) the usernames in table order.
  */
 function usernamesInOrder(): string[] {
     return screen
@@ -148,7 +114,12 @@ function usernamesInOrder(): string[] {
         .map((row) => within(row).getAllByRole("cell")[0].textContent ?? "");
 }
 
-/* Replaces window.location so a test can see where the screen tried to go. */
+/**
+ * Replaces window.location so a test can see where the screen tried to go.
+ * Must be called before render.
+ *
+ * @return ({ href: string }) the replacement, whose href records the destination.
+ */
 function stubLocation(): { href: string } {
     const fakeLocation = { href: "" };
     vi.stubGlobal("location", fakeLocation);
@@ -175,10 +146,7 @@ describe("AccountsPage", () => {
         expect(screen.getByText("Matthew")).toBeInTheDocument();
         expect(screen.getByText("Misty Waterflower")).toBeInTheDocument();
 
-        /*
-         * The date is shown in a readable form rather than as the ISO string the
-         * server sends, so this checks the conversion happened at all.
-         */
+        // Checks the ISO string was converted to a readable date.
         expect(screen.getByText("4 Aug 2026")).toBeInTheDocument();
         expect(screen.getByText("12 Aug 2026")).toBeInTheDocument();
 
@@ -205,12 +173,7 @@ describe("AccountsPage", () => {
         renderAccountsPage();
         await waitForTable();
 
-        /*
-         * Typed in capitals against a name stored in mixed case, and matching a
-         * person name rather than a username. Someone looking for a player types
-         * whichever of the two they remember, and will not match the
-         * capitalisation.
-         */
+        // Capitals typed against a mixed-case person name.
         await user.type(screen.getByLabelText("Search"), "KETCHUM");
 
         expect(usernamesInOrder()).toEqual(["ashketchum"]);
@@ -232,14 +195,7 @@ describe("AccountsPage", () => {
     // Sorting
     // -------------------------------------------------------------------------
 
-    /*
-     * Every column, ascending then descending, in one table-driven test.
-     *
-     * The card asks that clicking a heading sorts by it and clicking it again
-     * reverses the order, for every column shown. Written out four times this
-     * would be four near-identical tests, and a column added later would be
-     * quietly left out. Driving it from a list means the omission is visible.
-     */
+    /* Every column, ascending then descending, in one table-driven test. */
     const SORT_CASES = [
         { heading: "Name", ascending: ["ashketchum", "owner", "misty"] },
         { heading: "Role", ascending: ["owner", "ashketchum", "misty"] },
@@ -284,12 +240,7 @@ describe("AccountsPage", () => {
         renderAccountsPage();
         await waitForTable();
 
-        /*
-         * The arrow drawn in the heading is hidden from screen readers on
-         * purpose, so aria-sort is the only thing carrying this information to
-         * anyone who cannot see it. Nothing else in the frontend states that, so
-         * if it is dropped, this is the only place that says so.
-         */
+        // aria-sort carries the order to assistive software; the arrow is hidden from it.
         expect(screen.getByRole("columnheader", { name: "Username" }))
             .toHaveAttribute("aria-sort", "ascending");
         expect(screen.getByRole("columnheader", { name: "Role" }))
@@ -329,11 +280,7 @@ describe("AccountsPage", () => {
             ]),
         );
 
-        /*
-         * Check what actually went out. The endpoint takes three named fields and
-         * no role, and refuses a request with no CSRF token. Both are agreements
-         * with the backend that nothing else in the frontend states.
-         */
+        // Checks what went out: three named fields, no role, and the CSRF header.
         const [address, request] = fetchMock.mock.calls.find(
             (call) => call[1]?.method === "POST",
         )!;
@@ -356,11 +303,7 @@ describe("AccountsPage", () => {
         renderAccountsPage();
         await waitForTable();
 
-        /*
-         * A search narrow enough that the new account cannot match it. Without
-         * the search being cleared, the row is added and stays invisible, which
-         * reads as the add having silently failed.
-         */
+        // A search the new account cannot match.
         await user.type(screen.getByLabelText("Search"), "misty");
         expect(usernamesInOrder()).toEqual(["misty"]);
 
@@ -394,11 +337,7 @@ describe("AccountsPage", () => {
         await user.type(screen.getByLabelText("Password"), "waterrules1");
         await user.click(screen.getByRole("button", { name: "Create account" }));
 
-        /*
-         * The wording comes from the frontend, not the server. Spring sends a
-         * bare 409 with no message, because server.error.include-message is left
-         * at its default rather than exposing exception text to the browser.
-         */
+        // The wording comes from the frontend. The server sends a bare 409.
         expect(await screen.findByRole("alert")).toHaveTextContent(
             "That username is already taken.",
         );
@@ -425,11 +364,7 @@ describe("AccountsPage", () => {
             "Password must be at least 8 characters.",
         );
 
-        /*
-         * Nothing was sent. The server enforces this too and would answer 400,
-         * but a round trip to be told what the form already knew is a slower and
-         * vaguer way of saying the same thing.
-         */
+        // Nothing was sent.
         expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
     });
 
@@ -465,11 +400,7 @@ describe("AccountsPage", () => {
         await user.type(screen.getByLabelText("Password"), "pikachu2026");
         await user.click(screen.getByRole("button", { name: "Create account" }));
 
-        /*
-         * The other half of the rule. A check written slightly too strictly would
-         * refuse these two characters and pass every test above, because all of
-         * those use plain letters.
-         */
+        // The accepting half of the username rule.
         await waitFor(() =>
             expect(
                 fetchMock.mock.calls.some((call) => call[1]?.method === "POST"),
@@ -506,11 +437,7 @@ describe("AccountsPage", () => {
 
         await user.click(screen.getByRole("button", { name: "Add account" }));
         await user.type(screen.getByLabelText("Username"), "brock");
-        /*
-         * One character past the server's limit. Pasted rather than typed, since
-         * typing 101 characters one at a time is slow enough to be noticed in the
-         * test run.
-         */
+        // One character past the limit, pasted rather than typed.
         await user.click(screen.getByLabelText("Name"));
         await user.paste("B".repeat(ACCOUNT_LIMITS.personNameMax + 1));
         await user.type(screen.getByLabelText("Password"), "rocksolid1");
@@ -552,11 +479,6 @@ describe("AccountsPage", () => {
 
         await user.click(screen.getByRole("button", { name: "Add account" }));
 
-        /*
-         * Every account created here is a PLAYER, and the created date is decided
-         * by the database. Neither is the owner's to choose, and the server would
-         * ignore both if they were sent.
-         */
         expect(screen.queryByLabelText("Role")).not.toBeInTheDocument();
         expect(screen.queryByLabelText("Created")).not.toBeInTheDocument();
     });
@@ -599,12 +521,7 @@ describe("AccountsPage", () => {
 
         await user.click(screen.getByRole("button", { name: "Edit misty" }));
 
-        /*
-         * The username is shown in the heading so it is clear whose name is being
-         * changed, and there is no box for it. It is the login handle: changing
-         * it would sign that person out of a name they had memorised, and the
-         * server accepts only the person name anyway.
-         */
+        // The username is in the heading and has no box.
         expect(screen.getByText("Editing misty")).toBeInTheDocument();
         expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
         expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
@@ -623,11 +540,7 @@ describe("AccountsPage", () => {
 
         await user.click(screen.getByRole("button", { name: "Remove misty" }));
 
-        /*
-         * The question names the account. "Are you sure?" is answered yes by
-         * reflex and cannot catch the mistake that actually happens, which is
-         * pressing remove on the wrong row.
-         */
+        // The question names the account.
         expect(
             screen.getByText(/Remove misty, Misty Waterflower\?/),
         ).toBeInTheDocument();
@@ -667,12 +580,7 @@ describe("AccountsPage", () => {
         renderAccountsPage();
         await waitForTable();
 
-        /*
-         * The signed-in account is "owner", which is also a row in the table. The
-         * server refuses this deletion as well, and that refusal is the one that
-         * counts. Leaving the button there and letting the server say no would
-         * mean offering an action that never works.
-         */
+        // The signed-in account is "owner", which is also a row in the table.
         expect(
             screen.queryByRole("button", { name: "Remove owner" }),
         ).not.toBeInTheDocument();
@@ -695,15 +603,7 @@ describe("AccountsPage", () => {
 
         await user.click(screen.getByRole("button", { name: "Edit misty" }));
 
-        /*
-         * Before this, pressing Add account here replaced the edit form and threw
-         * away what had been typed, with no warning. The reverse was worse: a
-         * password half typed into the add form disappeared the same way.
-         *
-         * All three are greyed out rather than removed. Checked as still being on
-         * the page as well as disabled, because a button that vanishes and comes
-         * back reads as the page glitching.
-         */
+        // All three are still on the page and disabled.
         expect(screen.getByRole("button", { name: "Add account" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Edit ashketchum" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Remove ashketchum" })).toBeDisabled();
@@ -720,13 +620,7 @@ describe("AccountsPage", () => {
     // -------------------------------------------------------------------------
 
     it("refuses a signed-in player and shows them no account data at all", async () => {
-        /*
-         * 403 is what the server answers a signed-in player who is not the owner.
-         * The important half of this test is the second assertion: not merely
-         * that the refusal appears, but that no part of the table does. An empty
-         * version of the real screen would leak the shape of what is hidden and
-         * would look like a fault rather than a decision.
-         */
+        // 403 is what the server answers a signed-in player. No part of the table may appear.
         vi.stubGlobal(
             "fetch",
             vi.fn().mockImplementation((url: string) =>
@@ -752,11 +646,7 @@ describe("AccountsPage", () => {
         expect(screen.queryByLabelText("Search")).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Add account" })).not.toBeInTheDocument();
 
-        /*
-         * And they are not sent to the login screen. They are already signed in,
-         * so signing in again would produce the same refusal, which is a loop
-         * with no way out of it.
-         */
+        // They are not sent to the login screen.
         expect(fakeLocation.href).toBe("");
     });
 

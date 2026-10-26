@@ -1,23 +1,6 @@
 /*
- * Phase 2 Story 5: tests for the sign out button.
- *
- * WHERE THESE CAME FROM
- *
- * This test was in HomePage.test.tsx until Story 5 moved the button out into a
- * component both landing screens share. It moved with the code, because a test
- * sitting next to a screen that no longer holds the behaviour is a test nobody
- * finds when they break it.
- *
- * WHY IT EARNS ITS KEEP
- *
- * LIVING_DOC.md records that signing out failed roughly half the time. The token
- * was written into a hidden form field, and React resets that field to empty on
- * any redraw, so whether it survived until the browser sent the form came down to
- * timing. The fix was to read the token at the moment of sending.
- *
- * The test below checks the header that actually goes out, so anyone who moves
- * the token back into the markup fails here rather than the group discovering it
- * one time in two.
+ * Tests for the sign out button. They read the header that goes out and check
+ * where the screen goes, or what it says, afterwards.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -38,18 +21,12 @@ const SIGNED_IN_ACCOUNT = {
     role: "OWNER",
 };
 
-/*
- * Answers the two addresses a failed sign out now touches.
+/**
+ * Answers the two addresses a failed sign out touches, each one separately.
  *
- * logout - what the sign out request itself gets back.
- * me     - what the follow-up question about the session gets back.
- *
- * Returns the stand-in, so a test can check what was asked and in what order.
- *
- * Written as a router rather than one answer for everything, because the two
- * requests mean opposite things. A single answer of 403 to both would have the
- * follow-up read as "no session", and the test would pass while proving the
- * reverse of what it claims.
+ * @param logout (Response | Error) what the sign out request itself gets back.
+ * @param me (Response) what the follow-up /api/me question gets back.
+ * @return (Mock) the stand-in, so a test can check what was asked and in what order.
  */
 function serve({ logout, me }: { logout: Response | Error; me: Response }) {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
@@ -65,10 +42,10 @@ function serve({ logout, me }: { logout: Response | Error; me: Response }) {
     return fetchMock;
 }
 
-/*
- * Replaces window.location with something a test can read. The button leaves by
- * assigning to href, and jsdom will not perform a real navigation, so there is
- * nothing to observe unless the real location is swapped out first.
+/**
+ * Replaces window.location with a plain object, since jsdom performs no navigation.
+ *
+ * @return ({ href: string }) the replacement, whose href records the destination.
  */
 function stubLocation(): { href: string } {
     const fakeLocation = { href: "" };
@@ -78,10 +55,7 @@ function stubLocation(): { href: string } {
 
 describe("SignOutButton", () => {
     beforeEach(() => {
-        /*
-         * jsdom keeps a real cookie jar, so setting the cookie here is enough for
-         * the button to read a token out of it, exactly as it does in a browser.
-         */
+        // Puts the token in jsdom's cookie jar. Every assertion on the token header reads it.
         document.cookie = "XSRF-TOKEN=test-token";
     });
 
@@ -98,41 +72,17 @@ describe("SignOutButton", () => {
 
         await waitFor(() => expect(fakeLocation.href).toBe("/login?logout"));
 
-        /*
-         * Check what actually went out, not merely that something did. Spring
-         * refuses a POST with no CSRF token, and the refusal shows up as its
-         * plain error page rather than as a message this screen controls.
-         */
+        // Checks the header that went out, not merely that a request happened.
         const [address, request] = fetchMock.mock.calls[0];
         expect(address).toBe("/logout");
         expect(request.method).toBe("POST");
         expect(request.headers["X-XSRF-TOKEN"]).toBe("test-token");
     });
 
-    /*
-     * NOTE - Phase 2 Story 5. These two guard a mistake this file's own comment
-     * used to recommend.
-     *
-     * An earlier version left for the login screen whatever happened, on the
-     * grounds that it was the safer outcome. It is not. Going to the login screen
-     * ends nothing: the session cookie is still in the browser and the session is
-     * still alive on the server, so pressing back gets straight back in, while
-     * the login screen says "You have been signed out."
-     *
-     * That is precisely wrong for the situation sign out exists for, which is
-     * walking away from a computer that is not yours.
-     */
     it("stays put and says so when the sign out is refused and the session is still there", async () => {
         const user = userEvent.setup();
 
-        /*
-         * A refusal, not an error. Nothing is thrown, so a version that only
-         * watched for thrown errors would announce a sign out that never
-         * happened. A rejected CSRF token arrives exactly like this.
-         *
-         * /api/me then answers normally, which is what proves the session really
-         * did survive.
-         */
+        // A refusal, not a thrown error. /api/me then answers normally.
         const fetchMock = serve({
             logout: forbiddenResponse(),
             me: jsonResponse(SIGNED_IN_ACCOUNT),
@@ -155,23 +105,13 @@ describe("SignOutButton", () => {
         ]);
     });
 
-    /*
-     * The case the check exists for, and the one a guess gets wrong.
-     *
-     * The request reached the server, the session was ended, and only the reply
-     * was lost coming back. Reporting "you are still signed in" here would be the
-     * same lie as the old version told, pointing the other way.
-     */
+    /* The sign out reached the server and only the reply was lost. */
     it("leaves for the login screen when the request failed but the session is gone anyway", async () => {
         const user = userEvent.setup();
 
         serve({
             logout: new Error("network down"),
-            /*
-             * HTML with a status of 200 is what /api/me really answers when there
-             * is no session, because fetch has already followed the bounce to the
-             * login screen without saying so.
-             */
+            // HTML with a status of 200 is what /api/me answers when there is no session.
             me: htmlResponse(),
         });
         const fakeLocation = stubLocation();
@@ -187,12 +127,7 @@ describe("SignOutButton", () => {
     it("stays put and says so when nothing can be reached at all", async () => {
         const user = userEvent.setup();
 
-        /*
-         * Neither request gets an answer, so whether the session survived cannot
-         * be established. It is treated as alive, because that is the assumption
-         * that cannot send someone away from a computer they are still signed in
-         * on.
-         */
+        // Neither request gets an answer. The session is treated as alive.
         vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
         const fakeLocation = stubLocation();
 

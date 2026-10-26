@@ -1,28 +1,6 @@
 /*
- * Phase 2 Story 5: the form that creates an account.
- *
- * WHY THE CHECKS ARE WRITTEN OUT RATHER THAN LEFT TO THE BROWSER
- *
- * Marking the boxes as required and giving the password a minimum length would
- * make the browser refuse the form on its own, with no code here at all. That was
- * not chosen, for two reasons.
- *
- * The browser's refusal appears as a small bubble that disappears on the next
- * click, is worded by the browser rather than by us, and reads differently in
- * every browser. And it happens before any code here runs, so a test cannot see
- * the message or check that nothing was sent, which would leave the rules
- * uncovered.
- *
- * The rules below are the same ones the server enforces in CreateUserRequest. The
- * server is the one that matters, and it is never trusted to the browser: these
- * exist so that a mistake is pointed out immediately instead of after a round
- * trip that comes back as a bare 400.
- *
- * WHAT IS NOT ON THIS FORM
- *
- * A role, because every account made here is a PLAYER and the server accepts no
- * role field at all. And the created date, because it is decided by the database
- * at the moment the row is written.
+ * The form that creates a player account. Checks the three boxes against the
+ * same rules as CreateUserRequest before sending anything.
  */
 import { useState } from "react";
 import type { FormEvent } from "react";
@@ -34,10 +12,11 @@ import { ACCOUNT_LIMITS, createAccount } from "@/lib/accounts";
 import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 import type { Account } from "@/lib/accounts";
 
-/*
- * onCreated - called with the new account once the server has made it, so the
- *             table can show it without asking for the whole list again.
- * onCancel  - called when the form is closed without creating anything.
+/**
+ * Draws the add form and sends the new account to the server.
+ *
+ * @param onCreated (function) called with the new account once the server has made it.
+ * @param onCancel (function) called when the form is closed without creating anything.
  */
 export default function AddAccountForm({
     onCreated,
@@ -52,14 +31,11 @@ export default function AddAccountForm({
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    /*
-     * Checks the three boxes before anything is sent.
+    /**
+     * Checks the three boxes before anything is sent, one message at a time in
+     * the order the boxes appear.
      *
-     * Returns the problem to show, or an empty string when there is none.
-     *
-     * One message at a time, in the order the boxes appear. Listing every fault
-     * at once means fixing the first and being told about the second anyway,
-     * which reads as the form having ignored the correction.
+     * @return (string) the problem to show, or an empty string when there is none.
      */
     function findProblem(): string {
         if (username.trim().length < ACCOUNT_LIMITS.usernameMin) {
@@ -68,29 +44,13 @@ export default function AddAccountForm({
         if (username.trim().length > ACCOUNT_LIMITS.usernameMax) {
             return `Username must be ${ACCOUNT_LIMITS.usernameMax} characters or fewer.`;
         }
-        /*
-         * Checked after the length, so someone who typed nothing is told it is
-         * required rather than being told which characters are allowed in the
-         * nothing they typed.
-         *
-         * The value is trimmed first, so spaces at either end are removed rather
-         * than refused. Spaces in the middle are refused, because that is a
-         * different username rather than the same one typed untidily.
-         */
+        // The format check runs after the length checks, on the trimmed value.
         if (!ACCOUNT_LIMITS.usernameAllowed.test(username.trim())) {
             return "A username can use letters, numbers, dashes and underscores only.";
         }
         if (password.length < ACCOUNT_LIMITS.passwordMin) {
             return `Password must be at least ${ACCOUNT_LIMITS.passwordMin} characters.`;
         }
-        /*
-         * The password's upper limit is the one nobody expects a form to have,
-         * and it is not arbitrary. BCrypt hashes the first 72 bytes and ignores
-         * everything after them, so a longer password has a tail that does
-         * nothing at all. Refusing it here is honest; accepting it would promise
-         * something untrue. A password manager generating a very long one is
-         * exactly the case where that would go unnoticed.
-         */
         if (password.length > ACCOUNT_LIMITS.passwordMax) {
             return `Password must be ${ACCOUNT_LIMITS.passwordMax} characters or fewer.`;
         }
@@ -103,11 +63,11 @@ export default function AddAccountForm({
         return "";
     }
 
-    /*
-     * event - the submit event, whose default page reload is stopped.
+    /**
+     * Checks the boxes, sends the account and hands the result to the parent.
+     * A request that gets no answer is caught and shown.
      *
-     * Raises nothing. A request that gets no answer at all is caught and shown,
-     * because the alternative is a button that appears to do nothing.
+     * @param event (FormEvent) the submit event, whose default page reload is stopped.
      */
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
@@ -128,16 +88,7 @@ export default function AddAccountForm({
                 personName: personName.trim(),
             });
 
-            /*
-             * The session ended while this form was open. Nothing typed here can
-             * succeed until they sign in again, so showing a message and leaving
-             * the form open would only invite them to press the button a second
-             * time and be refused again.
-             *
-             * The exit is a full browser navigation rather than a router one, so
-             * the half-filled form is thrown away with the page. A password is
-             * sitting in it.
-             */
+            // The session ended. A full browser navigation discards the form with the page.
             if (result.kind === "noSession") {
                 window.location.href = "/login";
                 return;
@@ -156,12 +107,7 @@ export default function AddAccountForm({
                     : "Could not reach the server. Please try again.",
             );
         } finally {
-            /*
-             * Runs even when onCreated has already closed the form. Setting state
-             * on a component that has gone does nothing, so this is harmless, and
-             * leaving the button disabled on every path that does not close the
-             * form is worse.
-             */
+            // Runs on every path, including after onCreated has closed the form.
             setSubmitting(false);
         }
     }
@@ -216,10 +162,7 @@ export default function AddAccountForm({
                     <Label htmlFor="new-password" className="text-slate-700">
                         Password
                     </Label>
-                    {/*
-                      * new-password rather than off, so a password manager offers
-                      * to generate one instead of filling in the owner's own.
-                      */}
+                    {/* new-password, not off: a password manager then offers to generate one. */}
                     <Input
                         id="new-password"
                         type="password"

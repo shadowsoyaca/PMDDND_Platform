@@ -8,43 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /*
- * Phase 2 Story 4: answers the question "who am I signed in as?".
- *
- * WHY THIS EXISTS
- *
- * Spring's built-in form login answers every sign-in attempt with a redirect,
- * whether it worked or not. A browser following that redirect ends up in the
- * right place either way, but a React screen sending the request itself cannot
- * tell the two apart from the answer alone.
- *
- * So the login screen asks a second question. This address answers 200 with the
- * account's details when there is a session, and is redirected to the login
- * screen by the default-deny rule when there is not. That difference is
- * unambiguous, so the screen knows whether to go on or show an error.
- *
- * The placeholder home page uses the same address to show who is signed in, and
- * every later screen can use it to decide what a player is allowed to see.
- *
- * WHY THE ROLE IS INCLUDED
- *
- * Not for security. Anything the browser is told can be edited by whoever is
- * holding it, so the role here is for appearance only: deciding which landing
- * page to show, and which menu items to draw. Every rule that actually matters
- * is enforced on this side, by SecurityConfig and by the OWNER check on
- * /api/admin/. A player who edits this value in their browser sees a menu they
- * cannot use.
- *
- * WHY NOT THE WHOLE USER RECORD
- *
- * This returns three fields rather than the User object. Returning
- * the entity would hand out the password hash and the account's internal id,
- * neither of which the browser has any use for. Naming the fields one by one
- * means a column added to the table later cannot leak by accident.
- *
- * Phase 2 Story 5.5: Once a sign-in has an endpoint that answers with
- * data instead of a redirect, the login screen will not need to call this
- * straight after signing in. This address stays useful on its own, though, for
- * any screen that needs to know who is looking at it.
+ * Answers /api/me with the username, person name and role of the signed-in
+ * account.
  */
 @RestController
 public class CurrentUserController {
@@ -55,38 +20,27 @@ public class CurrentUserController {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Answers with the signed-in account.
+     *
+     * @param authentication (Authentication) the session's authentication, supplied by Spring.
+     * @return (ResponseEntity<SignedInAccount>) 200 with the account.
+     * @throws IllegalStateException if the signed-in account's row no longer exists.
+     */
     @GetMapping("/api/me")
     public ResponseEntity<SignedInAccount> currentUser(Authentication authentication) {
-        /*
-         * Reaching this method at all means SecurityConfig already accepted the
-         * request, so there is a session. This check is a backstop rather than a
-         * real branch: it keeps the method honest if the security rules are ever
-         * changed above it.
-         */
+        // A backstop, not dead code. The security rules stop a request with no session reaching here.
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).build();
         }
 
         String username = authentication.getName();
 
-        /*
-         * The person's real name is not carried in the session, only the
-         * username, so it is read from the database. orElseThrow is safe here:
-         * the session exists because this account was found at sign-in, so a
-         * missing row would mean the account was deleted mid-session, which is
-         * a genuine error rather than something to paper over.
-         */
+        // The person's name is not in the session, so it is read from the database.
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException(
                         "Signed-in account no longer exists: " + username));
 
-        /*
-         * NOTE - Phase 2 Story 5.5: this was a hand-built Map of the same three
-         * fields. Story 5.5 added SignedInAccount for the sign-in answer, which has
-         * to carry exactly this shape so the screens do not have to learn a second
-         * one, and two independent definitions of one payload is how they end up
-         * disagreeing. The JSON produced is identical.
-         */
         return ResponseEntity.ok(SignedInAccount.from(user));
     }
 }

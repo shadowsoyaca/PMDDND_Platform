@@ -20,33 +20,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /*
- * Phase 2 Story 5.5: the JSON sign-in endpoint answers with data, not a redirect.
- *
- * WHAT THIS FILE IS FOR
- *
- * Phase 2 Story 4 built the login screen on top of Spring Security's form login,
- * which answers a sign-in with a redirect whether it worked or not. The screen
- * therefore could not tell a wrong password from a server it could not reach, and
- * had to show one vague message covering both. Story 5.5 replaces that with an
- * endpoint that says which of the three things happened.
- *
- * The three answers, and why each is a separate case:
- *
- *   200  signed in. Carries the account, so the screen does not have to ask
- *        /api/me afterwards to find out whether it worked.
- *   401  refused. The credentials were not accepted.
- *   403  the CSRF token was missing or wrong. Written by DeniedReasonHandler,
- *        which already existed. A reload fixes it, so it must not be reported
- *        to the person as a wrong password.
- *
- * WHY MockMvc HERE AND A REAL SERVER IN CsrfCookieTest
- *
- * Everything below is about one request and the answer to it, which MockMvc
- * models honestly and quickly. What MockMvc cannot do is carry cookies from one
- * request to the next, so the two things that depend on that, replacing the
- * session id and replacing the CSRF token, are proven in CsrfCookieTest against a
- * real server instead. Splitting them that way keeps one slow test rather than
- * two.
+ * Tests for the JSON sign-in endpoint: the account on success, the session it
+ * starts, and the identical refusals for bad credentials.
  */
 @SpringBootTest(properties = {
         "app.owner.username=" + SecurityConfigTest.TEST_USER,
@@ -57,37 +32,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class JsonLoginTest {
 
-    /* The endpoint this story adds. Under /api/ because it answers with data. */
     private static final String LOGIN = "/api/login";
 
     @Autowired
     MockMvc mockMvc;
 
-    /*
-     * Builds the JSON body a sign-in is sent as.
+    /**
+     * Builds the JSON body a sign-in is sent as. The JSON is written by hand, not by an object mapper.
      *
-     * username - what to put in the username field.
-     * password - what to put in the password field.
-     *
-     * Returns the JSON text, ready to be used as a request body.
-     *
-     * Raises nothing.
-     *
-     * Written by hand rather than with an object mapper so the test states the
-     * exact shape the frontend sends. If the endpoint's field names ever change,
-     * this file should have to change too, because the frontend would.
+     * @param username (String) what to put in the username field.
+     * @param password (String) what to put in the password field.
+     * @return (String) the JSON text, ready to be used as a request body.
      */
     private String credentials(String username, String password) {
         return "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
     }
 
-    /*
-     * The endpoint accepts JSON and answers with the account.
-     *
-     * The body matters as much as the status. The login screen reads these three
-     * fields and then stops, where before it had to make a second request to
-     * /api/me to discover whether the sign-in had worked at all.
-     */
+    // The endpoint accepts JSON and answers with the account.
     @Test
     void correctCredentials_answerWithTheAccount() throws Exception {
         mockMvc.perform(post(LOGIN)
@@ -103,15 +64,7 @@ class JsonLoginTest {
                 .andExpect(authenticated());
     }
 
-    /*
-     * The session the sign-in started actually works on the next request.
-     *
-     * This is the one that would catch the trap in this story's approach. Since
-     * Spring Security 6 the security context is NOT saved to the session
-     * automatically, so a controller that authenticates and forgets to save it
-     * answers 200, looks entirely successful, and leaves the next request with no
-     * session at all. Checking the status of the sign-in alone would not notice.
-     */
+    // The session the sign-in started works on the next request.
     @Test
     void theSessionFromASignIn_worksOnTheNextRequest() throws Exception {
         MockHttpSession session = (MockHttpSession) mockMvc.perform(post(LOGIN)
@@ -133,14 +86,7 @@ class JsonLoginTest {
                 .andExpect(jsonPath("$.username").value(SecurityConfigTest.TEST_USER));
     }
 
-    /*
-     * A wrong password is refused with 401 and a reason, not a redirect.
-     *
-     * 401 rather than 403 on purpose. 403 in this application means "signed in
-     * and not allowed", which DeniedReasonHandler writes, and a refused sign-in is
-     * not that. Keeping them apart is what lets the screen tell a bad password
-     * from a rejected token.
-     */
+    // A wrong password is refused with 401 and a reason, not a redirect.
     @Test
     void wrongPassword_isRefusedWith401() throws Exception {
         mockMvc.perform(post(LOGIN)
@@ -152,18 +98,8 @@ class JsonLoginTest {
                 .andExpect(unauthenticated());
     }
 
-    /*
-     * An unknown username is refused in exactly the same way as a wrong password.
-     *
-     * The two answers are compared byte for byte rather than merely both being
-     * 401. Anything that differs, a different reason word or a different message,
-     * tells whoever is asking which usernames exist on this server, and that is
-     * the one thing the card's notes say not to give away.
-     *
-     * A disabled account belongs in this group too and cannot be tested here,
-     * because no disabled account exists until Phase 2 Story 8 builds the switch
-     * that makes one.
-     */
+    // An unknown username is refused the same way as a wrong password.
+    // The two refusals are compared byte for byte, not merely both checked for 401.
     @Test
     void unknownUsername_isRefusedIdenticallyToAWrongPassword() throws Exception {
         String wrongPassword = mockMvc.perform(post(LOGIN)
@@ -185,13 +121,7 @@ class JsonLoginTest {
                 .isEqualTo(wrongPassword);
     }
 
-    /*
-     * Without a CSRF token the request is refused, and says it was the token.
-     *
-     * The distinction is the whole reason DeniedReasonHandler exists. "Your token
-     * was rejected" clears on a page reload and "you are not allowed" does not, so
-     * reporting one as the other sends the person somewhere useless.
-     */
+    // Without a CSRF token the request is refused with the csrf reason.
     @Test
     void missingCsrfToken_isRefusedWithTheCsrfReason() throws Exception {
         mockMvc.perform(post(LOGIN)
@@ -202,15 +132,7 @@ class JsonLoginTest {
                 .andExpect(jsonPath("$.reason").value("csrf"));
     }
 
-    /*
-     * The password never comes back in the answer.
-     *
-     * Cheap to check and worth checking. This endpoint is the only place in the
-     * application that receives a password in a request body, so it is the only
-     * place that could echo one into a browser, a log, or a screenshot. A record
-     * that is returned rather than mapped is an easy mistake to make and an
-     * invisible one afterwards.
-     */
+    // The password never comes back in the answer.
     @Test
     void theAnswerNeverContainsTheSubmittedPassword() throws Exception {
         String body = mockMvc.perform(post(LOGIN)

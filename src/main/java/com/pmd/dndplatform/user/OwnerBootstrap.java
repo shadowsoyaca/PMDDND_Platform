@@ -8,21 +8,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 /*
- * Plants the owner account on first startup, so a brand-new database is never
- * locked out.
- *
- * How it works, in order:
- *   1. The app starts. Flyway has already created the users table.
- *   2. This runner looks for a row with the username in APP_OWNER_USERNAME.
- *   3. Found  -> do nothing. The database wins. Always.
- *      Missing -> insert it, using the BCrypt hash from APP_OWNER_PASSWORD_HASH.
- *
- * So the environment variables are no longer "your account". They are the SEED
- * that plants it once. After that, the database row is the real account, and
- * changing the environment variable does not change your password.
- *
- * If you ever lock yourself out: delete your row from the users table and
- * restart. This runner will plant it again from the variables.
+ * Creates the owner account at startup from the app.owner.* settings when no
+ * row with that username exists. An existing row is left untouched.
  */
 @Component
 public class OwnerBootstrap implements ApplicationRunner {
@@ -44,11 +31,15 @@ public class OwnerBootstrap implements ApplicationRunner {
         this.ownerPersonName = ownerPersonName;
     }
 
+    /*
+     * Checks for the owner row and inserts it when it is missing.
+     *
+     * @param args (ApplicationArguments) the startup arguments, unused.
+     */
     @Override
     public void run(ApplicationArguments args) {
         if (userRepository.existsByUsername(ownerUsername)) {
-            // Already planted. Never overwrite. The stored password stays the
-            // stored password, even if the environment variable now differs.
+            // This early return is what stops an existing row being overwritten.
             log.info("Owner account '{}' already exists. Leaving it alone.", ownerUsername);
             return;
         }
@@ -56,7 +47,7 @@ public class OwnerBootstrap implements ApplicationRunner {
         User owner = new User(ownerUsername, ownerPasswordHash, ownerPersonName, Role.OWNER);
         userRepository.save(owner);
 
-        // Log the username only. The hash is never logged.
+        // Logs the username only, never the hash.
         log.info("No owner account found. Created owner account '{}' from the startup settings.",
                 ownerUsername);
     }

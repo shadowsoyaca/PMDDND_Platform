@@ -32,15 +32,15 @@ build/
 ### VS Code ###
 .vscode/
 
-### Secrets / local & credential config (Story 6 — never commit credentials) ###
-# The committed application.yml stays secret-free. Real credentials (DB password,
-# secrets-manager bootstrap token) are supplied at runtime and must never be tracked.
+### Secrets and local credential config ###
+# Local override files and environment files that hold credentials. The four
+# patterns cover different filenames. The committed application.yaml holds no secrets.
 application-local.*
 application-secret.*
 .env
 *.env
 
-### Frontend (Phase 2 Story 4) ###
+### Frontend ###
 node_modules/
 frontend/dist/
 frontend/node/

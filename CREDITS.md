@@ -221,6 +221,6 @@ The platform is private and invite-only, is offered to a small group at no cost,
 and is not distributed, published, or monetised in any form. It is built around
 an original tabletop system rather than reproducing any published game.
 
-**If the project's circumstances change** — public availability, distribution, or
-any commercial element — the entries above are the list of items that would need
-review.
+**If the project's circumstances change**, through public availability,
+distribution, or any commercial element, the entries above are the list of items
+that would need review.

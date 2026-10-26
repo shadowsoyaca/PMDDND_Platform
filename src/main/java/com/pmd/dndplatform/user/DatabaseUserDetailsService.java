@@ -6,16 +6,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 /*
- * This is what retires the in-memory owner from Story 2.
- *
- * When someone submits the login form, Spring Security asks a UserDetailsService
- * "who is this username?". In Story 2 that answer came from a single account
- * invented in Java. Now it comes from the database.
- *
- * Spring Boot finds this class automatically because it is the only
- * UserDetailsService in the app. It pairs it with the BCrypt encoder from
- * SecurityConfig and does the password comparison itself. We never compare
- * passwords by hand.
+ * Looks up an account in the database when Spring Security asks who a
+ * username belongs to. Spring compares the password against the stored hash.
  */
 @Service
 public class DatabaseUserDetailsService implements UserDetailsService {
@@ -26,21 +18,19 @@ public class DatabaseUserDetailsService implements UserDetailsService {
         this.userRepository = userRepository;
     }
 
+    /*
+     * Loads the account for a username and builds the Spring Security user from it.
+     *
+     * @param username (String) the login name to look up.
+     * @return (UserDetails) the account's username, stored hash, role and enabled flag.
+     * @throws UsernameNotFoundException when no account has that username.
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("No account: " + username));
 
-        /*
-         * Hand Spring Security the stored hash, not a password. It runs the
-         * submitted password through BCrypt and compares the results.
-         *
-         * The .roles(...) call quietly adds the prefix "ROLE_", so Role.OWNER
-         * becomes the authority "ROLE_OWNER". That is the name SecurityConfig's
-         * hasRole("OWNER") is looking for. Spring's naming here is confusing;
-         * the rule is that .roles() and hasRole() both add the prefix, and they
-         * agree with each other.
-         */
+        // .roles(...) adds the ROLE_ prefix that hasRole() in SecurityConfig expects.
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
                 .password(user.getPasswordHash())
