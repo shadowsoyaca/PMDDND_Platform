@@ -1,32 +1,6 @@
 /*
- * Phase 2 Story 5: tests for the account management calls.
- *
- * WHY THIS FILE EXISTS
- *
- * Everything else in the frontend is tested through a screen, by driving it the
- * way a person does. These are tested directly, because what they get wrong is
- * not visible on a screen until after the damage is done.
- *
- * WHAT THEY ARE GUARDING
- *
- * A real fault, found by hand and reproduced before it was fixed. When the
- * session has ended, Spring answers a request with a redirect to the login page,
- * fetch follows it without saying so, and what arrives is the login page's HTML
- * carrying a status of 200. Every ordinary check for success says yes.
- *
- * The three symptoms were: removing an account reported success and took the row
- * out of the table while the account stayed in the database; adding and editing
- * threw while trying to read HTML as JSON, and showed "could not reach the
- * server" for a server that had answered perfectly well.
- *
- * The same trap has now caused three faults in this project, all in
- * LIVING_DOC.md. These tests are what stop a fourth.
- *
- * WHY NOT TESTED THROUGH THE SCREEN
- *
- * The screen's answer to all three is to leave for the login page, which is one
- * observable outcome for three different faults. Testing here says which of the
- * three broke.
+ * Tests for the account management calls, run directly against the functions
+ * with a fetch stand-in rather than through a screen.
  */
 import { describe, it, expect, vi } from "vitest";
 
@@ -60,11 +34,7 @@ function serveLoginBounce() {
 }
 
 describe("the account calls, when the session has ended", () => {
-    /*
-     * The worst of the three. Success here takes a row off the screen, so
-     * reporting it wrongly tells the owner a permanent action happened when the
-     * account is still in the database.
-     */
+    // Removal is the call where a bounce read as success takes a row off the screen.
     it("does not report a removal as done", async () => {
         serveLoginBounce();
 
@@ -84,14 +54,6 @@ describe("the account calls, when the session has ended", () => {
     });
 });
 
-/*
- * NOTE - Phase 2 Story 5. Two refusals, one status code, opposite meanings.
- *
- * Not being allowed is permanent, and trying again never helps. A rejected CSRF
- * token clears on a page reload. Both arrive as 403, so before the server started
- * saying which it was, every one of them was reported as a permissions problem,
- * including to the owner on their own platform.
- */
 describe("the account calls, when the server refuses", () => {
     it("says it was the security token when the server says so", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(csrfRefusedResponse()));
@@ -111,11 +73,7 @@ describe("the account calls, when the server refuses", () => {
         });
     });
 
-    /*
-     * A 403 carrying nothing readable. Treated as an ordinary refusal, which is
-     * the safer way round: telling somebody to reload when they are simply not
-     * allowed sends them round a loop with no end to it.
-     */
+    // A 403 carrying nothing readable is treated as an ordinary refusal.
     it("treats a refusal it cannot read as an ordinary one", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 403 })));
 
@@ -127,11 +85,7 @@ describe("the account calls, when the server refuses", () => {
 });
 
 describe("the account calls, when the session is fine", () => {
-    /*
-     * The other half of the guard. A check strict enough to catch the login page
-     * could just as easily start rejecting real answers, and a delete that never
-     * reports success would be a quieter fault than the one being fixed.
-     */
+    // The 204 case is what keeps the bounce check from rejecting real deletes.
     it("reports a removal as done when the server answers 204 with no content", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(noContentResponse()));
 

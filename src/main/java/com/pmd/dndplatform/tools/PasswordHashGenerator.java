@@ -6,20 +6,17 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
 /*
- * Developer helper. This is NOT part of the running app. Spring never calls it.
- * It only runs when you start this class by hand.
- *
- * What it does: turns a plain password into a BCrypt hash. You run it on your
- * own computer, copy the printed hash into the APP_OWNER_PASSWORD_HASH
- * environment variable, and the plain password never has to be committed or
- * leave your machine.
- *
- * How to run it:
- *   Give the password as the first argument, or run it with no argument and
- *   type the password when it asks.
+ * Developer helper that turns a plain password into a BCrypt hash for
+ * APP_OWNER_PASSWORD_HASH. Spring never runs this class. It is started by hand.
  */
 public class PasswordHashGenerator {
 
+    /*
+     * Reads a password from the first argument or from the console and prints its hash.
+     *
+     * @param args (String[]) the password as the first argument, or empty to be asked.
+     * @throws Exception when reading from the console fails.
+     */
     public static void main(String[] args) throws Exception {
         String password;
 

@@ -12,24 +12,14 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /*
- * The Java side of one row in the users table.
- *
- * This class does NOT create the table. Flyway does that (see
- * db/migration/V1__create_users_table.sql). This class only describes the
- * table so Java can read and write rows. Hibernate is set to "validate", which
- * means at startup it compares this class against the real table and refuses
- * to start if they disagree. That mismatch check is the safety net: if you add
- * a field here and forget the migration, the app tells you immediately instead
- * of failing later at runtime.
+ * One row of the users table. Describes the table for Hibernate so Java can
+ * read and write rows. The table itself is created by Flyway.
  */
 @Entity
 @Table(name = "users")
 public class User {
 
-    /*
-     * IDENTITY means "the database picks the number" (the BIGSERIAL column).
-     * Java leaves it null on a new object and reads it back after the insert.
-     */
+    // The database assigns the id on insert.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,18 +27,14 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    /* The BCrypt hash. The real password is never stored anywhere. */
+    // Holds the BCrypt hash, never the password.
     @Column(name = "password_hash", nullable = false, length = 72)
     private String passwordHash;
 
     @Column(name = "person_name", nullable = false, length = 100)
     private String personName;
 
-    /*
-     * EnumType.STRING is the important part. It saves the word "OWNER".
-     * The default (ORDINAL) would save the position number instead, which
-     * silently breaks if the enum order ever changes.
-     */
+    // Stores the role as its name, such as "OWNER", not as a number.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private Role role;
@@ -59,7 +45,7 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    /* JPA requires a no-argument constructor. Not used by our own code. */
+    // Required by JPA. Hibernate cannot instantiate the entity without it.
     protected User() {
     }
 

@@ -2,12 +2,8 @@
 <!-- ==========================================================================
      PMD D&D Platform - Maven build file
 
-     Maven reads this file to know three things: what the project is called,
-     what libraries it needs, and what steps to run when building it.
-
-     Running ".\mvnw.cmd clean package" from the repo root produces a single
-     runnable "fat" JAR in target/, which is the only file that gets deployed
-     to the server.
+     Names the project, lists the libraries it needs, and defines the build
+     steps. ".\mvnw.cmd clean package" produces one runnable JAR in target/.
      ========================================================================== -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -15,17 +11,9 @@
 	<!-- The POM format version. Always 4.0.0. Not the project's version. -->
 	<modelVersion>4.0.0</modelVersion>
 
-	<!-- ======================================================================
-	     PARENT
-
-	     Inheriting from spring-boot-starter-parent means Spring Boot picks the
-	     version number for every library below. That is why most <dependency>
-	     blocks in this file have no <version> tag: the parent already chose one
-	     that is known to work with Spring Boot 3.5.15. It also sets sensible
-	     defaults for the compiler and packaging plugins.
-
-	     Changing 3.5.15 upgrades Spring Boot and everything it manages at once.
-	     ====================================================================== -->
+	<!-- Spring Boot's parent POM. It sets the version of every library it manages,
+	     so most dependency blocks below carry no version tag, and it sets the
+	     compiler and packaging defaults. -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
@@ -33,27 +21,18 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 
-	<!-- ======================================================================
-	     PROJECT IDENTITY
-
-	     groupId + artifactId + version uniquely name this project. Together they
-	     also decide the built filename: dndplatform-2.5.0.jar
-	     ====================================================================== -->
+	<!-- groupId, artifactId and version together name the project and the built
+	     file, target/dndplatform-<version>.jar. -->
 	<groupId>com.pmd</groupId>
 	<artifactId>dndplatform</artifactId>
 
 	<!-- phase.story.child, bumped on each story branch. Names the built file,
-	     target/dndplatform-2.5.9.jar, which the deploy script and the build-info
-	     execution further down both read the version from. -->
+	     target/dndplatform-<version>.jar, which the deploy script and the
+	     build-info execution further down both read the version from. -->
 	<version>2.5.9</version>
 
-	<!-- ======================================================================
-	     PROJECT METADATA
-
-	     Empty placeholders left by Spring Initializr. They matter only when
-	     publishing a library to a public repository, which this project never
-	     does. Harmless to leave blank.
-	     ====================================================================== -->
+	<!-- Empty placeholders left by Spring Initializr. They are only read when a
+	     library is published to a public repository. -->
 	<name/>
 	<description/>
 	<url/>
@@ -70,59 +49,44 @@
 		<url/>
 	</scm>
 
-	<!-- ======================================================================
-	     PROPERTIES
-
-	     Reusable values. java.version is read by the parent's compiler settings,
-	     which is what locks this project to Java 17 rather than whatever JDK
-	     happens to be installed.
-	     ====================================================================== -->
+	<!-- java.version is read by the parent's compiler settings and pins the build
+	     to Java 17. -->
 	<properties>
 		<java.version>17</java.version>
 	</properties>
 
-	<!-- ======================================================================
-	     DEPENDENCIES
-
-	     The libraries the code needs. A "starter" is a bundle: asking for one
-	     pulls in a whole working set rather than a dozen individual libraries.
-
-	     <scope> controls when a dependency is available:
-	       (none)   - compiling, testing, and running
-	       runtime  - testing and running only, never referenced in code
-	       test     - tests only, never shipped in the JAR
-	     ====================================================================== -->
+	<!-- The libraries the code needs. A starter is a bundle of several libraries.
+	     <scope> says when a dependency is available: none is compiling, testing
+	     and running; runtime is testing and running; test is tests only. -->
 	<dependencies>
 
-		<!-- The web layer: embedded Tomcat, Spring MVC, JSON handling. This is
-		     what makes the app an HTTP server listening on port 8080, and what
-		     serves the React files out of the classpath's static/ folder. -->
+		<!-- The web layer: embedded Tomcat, Spring MVC, JSON handling. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
-		<!-- Story 2: Spring Security. This is the lock on every route. -->
+		<!-- Spring Security. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-		<!-- Phase 2 Story 3: JPA / Hibernate. Reads and writes database rows as Java objects. -->
+		<!-- JPA / Hibernate. Reads and writes database rows as Java objects. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
-		<!-- Phase 2 Story 3: checks the incoming form fields (@NotBlank, @Size) before
-		     the controller runs. -->
+		<!-- Validation annotations such as @NotBlank and @Size, checked before the
+		     controller runs. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
-		<!-- Phase 2 Story 3: Flyway owns the database schema. Two pieces are needed:
-		     the core engine, and the PostgreSQL support module. -->
+		<!-- Flyway, which owns the database schema: the core engine and the
+		     PostgreSQL support module. -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
@@ -132,23 +96,21 @@
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 
-		<!-- Phase 2 Story 3: the PostgreSQL driver. "runtime" because the code never
-		     mentions it by name; it is only needed when the app is running. -->
+		<!-- The PostgreSQL driver, at runtime scope. -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- The test toolkit: JUnit, AssertJ, Mockito, MockMvc. Test scope, so
-		     none of it ends up in the deployed JAR. -->
+		<!-- The test toolkit: JUnit, AssertJ, Mockito, MockMvc. Test scope. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 
-		<!-- Phase 2 Story 3: lets tests simulate logged-in and logged-out requests. -->
+		<!-- Lets tests simulate logged-in and logged-out requests. -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
@@ -159,51 +121,19 @@
 	<!-- ======================================================================
 	     BUILD
 
-	     Plugins are the steps Maven runs. Each <execution> binds a plugin goal
-	     to a phase of the build lifecycle. Phases run in a fixed order; the ones
-	     that matter here are:
-
-	       generate-resources  - early, before Java is compiled
-	       compile             - Java source becomes .class files in target/classes/
-	       prepare-package     - last chance to add files before the JAR is sealed
+	     Each <execution> binds a plugin goal to a phase. The phases used here,
+	     in the order Maven runs them:
+	       generate-resources  - before Java is compiled
+	       prepare-package     - after compilation, before the JAR is sealed
 	       package             - target/classes/ is zipped into the JAR
-
-	     Nothing in target/ is ever edited or committed. It is rebuilt from
-	     scratch by every "clean package".
 	     ====================================================================== -->
 	<build>
 		<plugins>
 
-			<!-- Takes the plain JAR that Maven produces and repackages it into an
-			     executable "fat" JAR with every dependency bundled inside, plus a
-			     launcher so "java -jar" works. This is what makes a single file
-			     deployable to the server with no libraries installed alongside it.
-
-			     NOTE: Phase 2 Story 4.5 - the <executions> block below is new.
-
-			     The build-info goal writes a small file into the build output at
-			     META-INF/build-info.properties, holding the version from the
-			     <version> tag above and the clock time this build ran. Spring Boot
-			     looks for that file at startup and, if it finds it, creates a
-			     BuildProperties bean from it. HealthController reads that bean.
-			     That is the whole chain that replaced a version typed in by hand.
-
-			     Two things about this that are not visible in the XML:
-
-			     1. The repackage step is NOT lost by adding this. The parent POM
-			        already declares an execution with the id "repackage", and
-			        Maven merges executions by id rather than replacing the whole
-			        list. A different id is an addition. The same id would have
-			        been an override. This looks like it should break the fat JAR
-			        and does not.
-
-			     2. The goal has no <phase> here because it does not need one. Its
-			        own default is generate-resources, which runs before Java is
-			        compiled and therefore before anything is packaged. Naming a
-			        phase would only be a chance to name the wrong one.
-
-			     The generated file is not committed. It lives in target/, which is
-			     rebuilt from scratch by every build. -->
+			<!-- Repackages the plain JAR into a runnable fat JAR. The build-info
+			     execution writes META-INF/build-info.properties, holding the
+			     version and the build time, which HealthController reads. Its id
+			     must differ from "repackage", and the goal names no phase. -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -216,54 +146,11 @@
 			</plugin>
 
 			<!-- ==============================================================
-			     Phase 2 Story 4: builds the React frontend as part of the Maven
-			     build, so "clean package" produces a JAR containing both halves
-			     of the application.
-
-			     Node and npm versions are pinned here on purpose. The plugin
-			     downloads its own copy into frontend/node/ rather than using
-			     whatever is on PATH, so the Windows side, the WSL side, and any
-			     future machine all build with the same toolchain. These two
-			     numbers match the versions currently installed locally.
-
-			     The three executions run in the order written:
-			       1. install-node-and-npm - downloads the pinned Node into the project
-			       2. npm ci               - installs dependencies exactly as pinned
-			                                 in package-lock.json (unlike "npm install",
-			                                 ci never silently updates the lock file)
-			       3. npm run build        - Vite compiles TypeScript and bundles
-			                                 everything into frontend/dist/
-
-			     frontend/node/ and frontend/dist/ are both generated and both
-			     git-ignored.
-
-			     NOTE: Phase 2 Story 4.7 - all three now name prepare-package.
-			     Before this story they had no <phase> at all, which left them on
-			     this plugin's own default of generate-resources.
-
-			     That default is the problem. Maven phases run in a fixed order and
-			     every phase before the requested one runs too, so
-			     generate-resources runs for "test" just as much as for "package".
-			     A backend test run therefore spent about two and a half minutes
-			     downloading Node, reinstalling 504 packages, and bundling React,
-			     to produce files that no backend test ever opens. Measured: 3m23s
-			     before, about 45s after.
-
-			     prepare-package is the last phase before the JAR is sealed. It
-			     runs for "package" and does not run for "test", which is exactly
-			     the distinction wanted. The copy-frontend-build step below already
-			     sits in this phase, and within one phase Maven runs plugins in the
-			     order they are declared in this file. This plugin is declared
-			     above maven-resources-plugin, so the bundle is still built before
-			     it is copied. Reordering these two plugin blocks would break the
-			     build in a way that is not obvious from either one on its own.
-
-			     KNOWN CONSEQUENCE: "mvnw spring-boot:run" no longer produces a
-			     frontend, because it stops short of prepare-package. That changes
-			     nothing in practice. The application is started with F5 in VS
-			     Code, which does not run Maven at all, and frontend work is done
-			     against the Vite dev server with "npm run dev". A build that is
-			     actually deployed always goes through "package" and is unaffected.
+			     Builds the React frontend as part of the Maven build. Node and
+			     npm are pinned and downloaded into frontend/node/. All four
+			     executions run in prepare-package, in the order written: install
+			     Node, npm ci, npm run build, npm test. This plugin is declared
+			     above maven-resources-plugin, and that order matters.
 			     ============================================================== -->
 			<plugin>
 				<groupId>com.github.eirslett</groupId>
@@ -293,39 +180,8 @@
 						<configuration><arguments>run build</arguments></configuration>
 					</execution>
 
-					<!-- NOTE: Phase 2 Story 4.7 - this fourth execution is new.
-
-					     It runs the frontend tests, and it exists so that a
-					     broken frontend cannot become a deployable JAR.
-
-					     The problem it solves: ".\mvnw.cmd test" runs the
-					     backend tests only. It does not look at the frontend at
-					     all. So a broken screen passes all 30 backend tests, and
-					     the only thing that would have caught it is a person
-					     remembering to run "npm test" by hand. Remembering is
-					     not a guarantee.
-
-					     With this here, "clean package" fails and produces no
-					     JAR when a frontend test fails. There is then nothing to
-					     upload, which is the point: the broken build cannot
-					     reach the server because it does not exist.
-
-					     WHY IT IS HERE AND NOT IN THE test PHASE. Putting it
-					     there would drag the whole frontend toolchain back into
-					     every backend test run, which is the cost the phase
-					     change above just removed. prepare-package runs for
-					     "package" and not for "test", so the fast loop stays
-					     fast and the thing that gets deployed is the thing that
-					     gets checked.
-
-					     WHY IT IS LAST. "npm run build" runs the TypeScript
-					     compiler. 
-
-					     COST: roughly 45 seconds on a package build. Almost none
-					     of that is the tests themselves, which take about six.
-					     It is the "npm ci" step above having just deleted
-					     node_modules, which throws away the build cache with it,
-					     so the first run afterwards rebuilds it from scratch. -->
+					<!-- Runs the frontend tests. A failing test fails the package
+					     build, so no JAR is produced. -->
 					<execution>
 						<id>npm-test</id>
 						<phase>prepare-package</phase>
@@ -336,23 +192,9 @@
 			</plugin>
 
 			<!-- ==============================================================
-			     Phase 2 Story 4: copies the finished frontend build into the
-			     JAR's static folder.
-
-			     Vite writes to frontend/dist/. Spring Boot serves web files from
-			     the classpath at static/, which is target/classes/static/ during
-			     a build. This step bridges the two.
-
-			     Runs at prepare-package, so the files land in target/classes/
-			     after Java compilation but before the JAR is zipped.
-
-			     ${project.build.outputDirectory} is Maven's own name for
-			     target/classes, so this keeps working if that path ever changes.
-
-			     filtering is switched off explicitly. Filtering means "search the
-			     copied files for ${...} placeholders and substitute values",
-			     which would corrupt binary files such as the PNG backdrop. Off is
-			     the default, but stating it makes the intent obvious.
+			     Copies frontend/dist/ into the JAR's static folder during
+			     prepare-package. filtering is false, so the files are copied
+			     byte for byte.
 			     ============================================================== -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

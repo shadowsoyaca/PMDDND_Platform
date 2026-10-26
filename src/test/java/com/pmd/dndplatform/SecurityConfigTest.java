@@ -20,18 +20,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /*
- * Phase 2 Story 2 checks, still standing. These prove the lock behaves the way the
- * story asks:
- *  - a logged-out visitor is turned away from a protected route,
- *  - the login page is reachable without logging in,
- *  - the right password gets in, the wrong one does not,
- *  - BCrypt is the encoder actually in use,
- *  - /health answers a local request but not an outside one.
- *
- * Phase 2 STORY 3 CHANGE: the owner account is no longer invented in memory. The three
- * app.owner.* values below now seed a real row in the test database at startup,
- * so "correctPassword_logsIn" is now proving the DATABASE login path works, not
- * an in-memory one. The test is unchanged; what it proves got stronger.
+ * Tests for the security configuration: protected routes, the login endpoint,
+ * the password encoder, and the /health address check. The app.owner.*
+ * properties seed the owner row in the test database at startup.
  */
 @SpringBootTest(properties = {
         "app.owner.username=" + SecurityConfigTest.TEST_USER,
@@ -53,11 +44,7 @@ class SecurityConfigTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
-    /*
-     * NOTE - Phase 2 Story 4: this used to ask for "/", which was protected
-     * until Story 4 made it public so the browser can load the React app. It now
-     * asks for a route that is still behind the default-deny rule.
-     */
+    // Asks for a route behind the default-deny rule.
     @Test
     void protectedRoute_whenLoggedOut_isSentToLogin() throws Exception {
         mockMvc.perform(get("/roster"))
@@ -72,18 +59,11 @@ class SecurityConfigTest {
     }
 
     /*
-     * NOTE - Phase 2 Story 5.5: these two used Spring's formLogin() helper, which
-     * posted a form to /login. Form login is gone, so they now go through the
-     * endpoint the login screen actually uses.
+     * Builds the JSON body the login endpoint takes.
      *
-     * What they prove is unchanged: the right password gets in and the wrong one
-     * does not, against a real row in the database. The status is checked as well
-     * as the outcome, because authenticated() only asks whether somebody is signed
-     * in rather than whether this request is what signed them in.
-     *
-     * JsonLoginTest covers the endpoint's own contract, the response bodies and all
-     * three status codes. These two stay here because they are about the security
-     * configuration as a whole, which is what this file is for.
+     * @param username (String) the login name.
+     * @param password (String) the plain password.
+     * @return (String) the JSON body.
      */
     private String credentials(String username, String password) {
         return "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
@@ -115,20 +95,14 @@ class SecurityConfigTest {
         assertThat(passwordEncoder.matches(TEST_PASSWORD, TEST_HASH)).isTrue();
     }
 
-    /*
-     * MockMvc uses 127.0.0.1 as the request address by default, so this stands
-     * in for the deploy script polling /health on the server.
-     */
+    // MockMvc sends requests from 127.0.0.1 by default.
     @Test
     void health_fromThisMachine_isAllowed() throws Exception {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk());
     }
 
-    /*
-     * An outside address is refused. Because the caller is not logged in, the
-     * refusal shows up as a redirect to the login page, not the /health text.
-     */
+    // An outside address gets the login redirect, not the /health text.
     @Test
     void health_fromOutsideAddress_isBlocked() throws Exception {
         mockMvc.perform(get("/health").with(request -> {

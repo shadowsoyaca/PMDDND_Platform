@@ -28,20 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /*
- * Phase 2 Story 3 checks. Every acceptance criterion in the story has a test here.
- *
- * Two annotations do a lot of quiet work:
- *
- *  @ActiveProfiles("test") - points at the pmd_dnd_test database, so no test
- *      ever touches real accounts.
- *
- *  @Transactional - everything a test writes is rolled back when it finishes.
- *      Tests therefore never leak accounts into each other, and can be run in
- *      any order, any number of times, with the same result.
- *
- * .with(csrf()) appears on every POST, PUT and DELETE. CSRF protection is on,
- * so a state-changing request without a token is refused. That helper supplies
- * one, which is exactly what a real browser will do.
+ * Tests for the account management endpoints. @Transactional rolls back what
+ * each test writes, and .with(csrf()) supplies the CSRF token on every POST,
+ * PUT and DELETE.
  */
 @SpringBootTest(properties = {
         "app.owner.username=" + SecurityConfigTest.TEST_USER,
@@ -67,7 +56,13 @@ class UserAdminTest {
     @Autowired
     ObjectMapper objectMapper;
 
-    /* Turns a request object into the JSON the browser would actually send. */
+    /*
+     * Turns a request object into its JSON body.
+     *
+     * @param body (Object) the request object to serialise.
+     * @return (String) the JSON body.
+     * @throws Exception when the object cannot be serialised.
+     */
     private String json(Object body) throws Exception {
         return objectMapper.writeValueAsString(body);
     }
@@ -76,10 +71,7 @@ class UserAdminTest {
     // The owner seed
     // -------------------------------------------------------------------------
 
-    /*
-     * The in-memory owner from Story 2 is gone. This proves the replacement:
-     * the owner is now a real row in the database, planted at startup.
-     */
+    // Checks the owner row is planted at startup.
     @Test
     void ownerAccount_isSeededIntoTheDatabaseAtStartup() {
         User owner = userRepository.findByUsername(SecurityConfigTest.TEST_USER).orElseThrow();
@@ -94,7 +86,7 @@ class UserAdminTest {
     // Who is allowed in
     // -------------------------------------------------------------------------
 
-    /* A logged-out visitor gets bounced to the login page, not to the accounts. */
+    // Checks a logged-out visitor is redirected to the login page.
     @Test
     void loggedOutVisitor_cannotReachAccountManagement() throws Exception {
         mockMvc.perform(get(ADMIN_URL))
@@ -102,10 +94,7 @@ class UserAdminTest {
                 .andExpect(redirectedUrlPattern("**/login"));
     }
 
-    /*
-     * A logged-in PLAYER is refused. This is the important one: being logged in
-     * is not the same as being allowed. 403 means "I know who you are, and no".
-     */
+    // Checks a logged-in PLAYER gets 403.
     @Test
     @WithMockUser(username = "someplayer", roles = "PLAYER")
     void player_cannotReachAccountManagement() throws Exception {
@@ -113,7 +102,7 @@ class UserAdminTest {
                 .andExpect(status().isForbidden());
     }
 
-    /* A logged-in PLAYER cannot create an account either. No self-signup, ever. */
+    // Checks a logged-in PLAYER cannot create an account.
     @Test
     @WithMockUser(username = "someplayer", roles = "PLAYER")
     void player_cannotCreateAnAccount() throws Exception {
@@ -143,10 +132,7 @@ class UserAdminTest {
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
     }
 
-    /*
-     * The single most important test in this story. The password must reach the
-     * database as a BCrypt hash and nothing else.
-     */
+    // Checks the password reaches the database as a BCrypt hash.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void createdAccount_storesAHashNotThePassword() throws Exception {
@@ -160,13 +146,13 @@ class UserAdminTest {
 
         User saved = userRepository.findByUsername("ashketchum").orElseThrow();
 
-        // The real password is nowhere in the row.
+        // The stored value is not the plain password.
         assertThat(saved.getPasswordHash()).isNotEqualTo(plainPassword);
-        // What IS there is a BCrypt hash that the password matches.
+        // The stored value is a hash the password matches.
         assertThat(passwordEncoder.matches(plainPassword, saved.getPasswordHash())).isTrue();
     }
 
-    /* The response must never carry the hash back out to the browser. */
+    // Checks the response body carries no hash or password.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void responses_neverIncludeThePasswordHash() throws Exception {
@@ -179,7 +165,7 @@ class UserAdminTest {
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 
-    /* Two people cannot share a login name. */
+    // Checks a second account with the same username answers 409.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void duplicateUsername_isRefused() throws Exception {
@@ -194,7 +180,7 @@ class UserAdminTest {
                 .andExpect(status().isConflict());   // 409
     }
 
-    /* The field checks work, so a bad form never reaches the database. */
+    // Checks a too-short password is refused and nothing is saved.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void tooShortPassword_isRefused() throws Exception {
@@ -207,18 +193,7 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("ashketchum")).isFalse();
     }
 
-    /*
-     * NOTE - Phase 2 Story 5: the upper limit on a password, which was 100 and
-     * is now 68.
-     *
-     * BCrypt hashes the first 72 bytes and ignores the rest, so anything longer
-     * carries a tail that does nothing. Accepting it would mean two passwords
-     * sharing their first 72 bytes opening the same account, while the form
-     * claimed the whole thing mattered.
-     *
-     * 69 characters rather than something far longer, so the test fails if the
-     * limit is moved by even one.
-     */
+    // Checks a 69 character password, one over the limit, is refused.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void tooLongPassword_isRefused() throws Exception {
@@ -233,15 +208,7 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("ashketchum")).isFalse();
     }
 
-    /*
-     * NOTE - Phase 2 Story 5: usernames now have a format rule. Letters,
-     * numbers, a dash and an underscore, and nothing else.
-     *
-     * A space is the case worth testing by name. It is invisible at the end of a
-     * username, cannot be told from a double space in the middle, and cannot be
-     * said out loud, while sign-in matches exactly. So it produces an account
-     * nobody can reliably type.
-     */
+    // Checks a username with a space is refused.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void usernameWithASpace_isRefused() throws Exception {
@@ -254,7 +221,7 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("ash ketchum")).isFalse();
     }
 
-    /* A dash and an underscore are allowed, so the rule is not simply letters. */
+    // Checks a dash and an underscore are accepted in a username.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void usernameWithADashAndUnderscore_isAccepted() throws Exception {
@@ -265,7 +232,7 @@ class UserAdminTest {
                 .andExpect(status().isCreated());
     }
 
-    /* Person name is required, per the design decision. */
+    // Checks a blank person name is refused.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void missingPersonName_isRefused() throws Exception {
@@ -276,10 +243,7 @@ class UserAdminTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /*
-     * The whole point of the story: a person the DM invites can actually get in.
-     * This goes through the real login form and the real database lookup.
-     */
+    // Checks a newly created account can sign in through the login endpoint.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void aNewlyCreatedUser_canLogIn() throws Exception {
@@ -289,19 +253,8 @@ class UserAdminTest {
                         .content(json(new CreateUserRequest("ashketchum", "pikachu2026", "Ash Ketchum"))))
                 .andExpect(status().isCreated());
 
-        /*
-         * NOTE - Phase 2 Story 5.5: this used formLogin() and asserted
-         * authenticated(), and it was passing for the wrong reason.
-         *
-         * authenticated() only asks whether SOMEBODY is signed in. This test is
-         * annotated @WithMockUser so the owner can create the account, and that
-         * mock user satisfied the assertion on its own. The sign-in could have done
-         * nothing at all and the test would still have been green, which means it
-         * never proved the thing its name claims.
-         *
-         * Checking the answer names the new account is what makes it real. The mock
-         * user cannot produce that body.
-         */
+        // Checks the response body names the new account. The mock user
+        // from @WithMockUser cannot produce that body.
         mockMvc.perform(post("/api/login")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -316,7 +269,7 @@ class UserAdminTest {
     // List
     // -------------------------------------------------------------------------
 
-    /* The Manage Accounts table: the seeded owner, plus whoever was added. */
+    // Checks the list holds the seeded owner and the added account, newest first.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void owner_canListAccounts() throws Exception {
@@ -328,7 +281,7 @@ class UserAdminTest {
 
         mockMvc.perform(get(ADMIN_URL))
                 .andExpect(status().isOk())
-                // The list is newest first, so the account just added is at the top.
+                // The account just added is at the top.
                 .andExpect(jsonPath("$[0].username").value("ashketchum"))
                 .andExpect(jsonPath("$[0].personName").value("Ash Ketchum"))
                 .andExpect(jsonPath("$[0].passwordHash").doesNotExist());
@@ -380,7 +333,7 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername("brock")).isFalse();
     }
 
-    /* Guard one: you cannot delete yourself. */
+    // Checks an owner cannot delete their own account.
     @Test
     @WithMockUser(username = SecurityConfigTest.TEST_USER, roles = "OWNER")
     void owner_cannotDeleteThemselves() throws Exception {
@@ -392,14 +345,8 @@ class UserAdminTest {
         assertThat(userRepository.existsByUsername(SecurityConfigTest.TEST_USER)).isTrue();
     }
 
-    /*
-     * Guard two: the last owner cannot be removed, so the platform can never be
-     * left with nobody who can manage accounts. Here a SECOND owner tries to
-     * delete the seeded one and is refused, because that would leave one owner
-     * standing... which is fine. So this test checks the real failing case:
-     * with only one owner in the table, deleting them is refused even by a
-     * different owner account.
-     */
+    // Checks the only OWNER row cannot be deleted by a different owner.
+    // The second-owner test user has no database row on purpose.
     @Test
     @WithMockUser(username = "secondowner", roles = "OWNER")
     void theLastOwner_cannotBeDeleted() throws Exception {

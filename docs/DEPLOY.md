@@ -64,8 +64,6 @@ dndplatform-2.3.5-20260724-040359.jar
              version, from <version> in pom.xml
 ```
 
-<!-- NOTE: Phase 2 Story 4.5 - the last sentence was a promise about future work.
-     It is now describing something that exists. -->
 **The version is `phase.story.child`.** `2.3.5` is Phase 2 Story 3.5. It is set
 in `pom.xml` and bumped on each story branch. That is the single place it is
 defined. Two separate things read it back rather than being told it: the deploy
@@ -140,7 +138,7 @@ decision was revisited in this story and deliberately kept. Three reasons:
 This was borne out on the first real deploy of this story: the app failed to
 start because of a wrong database password. The build was fine. Automatic
 rollback would have reinstated a Phase 1 build with no database wiring at all,
-which would have come up healthy and reported a clean recovery — leaving a green
+which would have come up healthy and reported a clean recovery, leaving a green
 server and no idea what went wrong.
 
 ---
@@ -153,7 +151,7 @@ so the current state is explicable.
 The work was split into three steps, each introducing **one** new variable, so
 that a failure would have one suspect rather than four.
 
-### Step A — prove the layout, with the code already running
+### Step A: prove the layout, with the code already running
 
 Created `releases/`, archived the running build into it under its proper name,
 created the pointer, and switched the unit to follow it. The application did not
@@ -175,7 +173,7 @@ Then `ExecStart` in the unit was changed from `dndplatform.jar` to `current.jar`
 followed by `daemon-reload` and a restart. The old `dndplatform.jar` and its
 `.bak` were left in place as the undo, and deleted only after Step C passed.
 
-### Step B — prove the environment file, still with the old code
+### Step B: prove the environment file, still with the old code
 
 The server had never had the four runtime secrets, which is why Story 2 and
 Story 3 code had never been able to run there.
@@ -199,7 +197,7 @@ APP_OWNER_PASSWORD_HASH=...
 APP_OWNER_PERSON_NAME=...
 ```
 
-`DB_URL` and `DB_USERNAME` are not in the file — their defaults in
+`DB_URL` and `DB_USERNAME` are not in the file. Their defaults in
 `application.yaml` already match the server.
 
 Then `EnvironmentFile=/etc/dndplatform/dndplatform.env` was added to the unit,
@@ -223,9 +221,9 @@ scrollback afterwards if that matters.
 
 **What Step B could not prove.** The build running at the time did not read any
 of those values, so the step proved only that the file parses and systemd accepts
-it. A wrong value would not surface until Step C — and one did.
+it. A wrong value would not surface until Step C, and one did.
 
-### Step C — deploy the real code
+### Step C: deploy the real code
 
 Upload, install the script, sync the unit file, deploy. This was the first run of
 Flyway against the server database: it created `flyway_schema_history`, applied
@@ -289,9 +287,6 @@ No output means identical.
 
 ---
 
-<!-- NOTE: Phase 2 Story 4.5 - this section used to be called "Known gap" and
-     said /health could not tell you which build was running. That is fixed, so
-     the section now describes how to ask rather than why you cannot. -->
 ## Confirming which build is running
 
 Ask the app. Run this **on the server**:

@@ -1,20 +1,6 @@
 /*
- * Phase 2 Story 5: the confirmation shown before an account is removed.
- *
- * WHY THE ACCOUNT IS NAMED IN THE QUESTION
- *
- * The card asks for it, and the reason is worth stating. A confirmation reading
- * "Are you sure?" is answered yes by reflex, and it cannot catch the mistake that
- * actually happens, which is pressing remove on the wrong row. Putting the
- * username and the person's name in the question means the wrong row is visible
- * in the sentence being agreed to.
- *
- * WHY REMOVING IS TREATED AS SERIOUS
- *
- * It cannot be undone, and it will eventually take a character, a history and a
- * share of a campaign with it. Phase 2 Story 8 exists because the right answer is
- * often to disable an account rather than delete it, and that story is not built
- * yet, so today this is the only option and the only guard is this question.
+ * The confirmation shown before an account is removed. The question names the
+ * account, and the row leaves the table only once the server reports the removal.
  */
 import { useState } from "react";
 
@@ -23,10 +9,12 @@ import { deleteAccount } from "@/lib/accounts";
 import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 import type { Account } from "@/lib/accounts";
 
-/*
- * account   - the account about to be removed.
- * onRemoved - called once the server has removed it.
- * onCancel  - called when the question is answered no.
+/**
+ * Draws the removal question and its two buttons.
+ *
+ * @param account (Account) the account about to be removed.
+ * @param onRemoved (function) called with the account id once the server has removed it.
+ * @param onCancel (function) called when the question is answered no.
  */
 export default function RemoveAccountConfirm({
     account,
@@ -41,9 +29,8 @@ export default function RemoveAccountConfirm({
     const [submitting, setSubmitting] = useState(false);
 
     /*
-     * Raises nothing. A request that gets no answer is caught and shown, which
-     * matters more here than elsewhere: silently doing nothing after a confirmed
-     * deletion could be read as the deletion having worked.
+     * Sends the removal and hands the result to the parent. A request that
+     * gets no answer is caught and shown.
      */
     async function handleRemove() {
         setError("");
@@ -52,12 +39,7 @@ export default function RemoveAccountConfirm({
         try {
             const result = await deleteAccount(account.id);
 
-            /*
-             * The session ended, so nothing was removed. Leaving for the login
-             * screen is the only honest answer: the alternative that used to
-             * happen here was taking the row out of the table and reporting a
-             * deletion that never took place.
-             */
+            // The session ended and nothing was removed.
             if (result.kind === "noSession") {
                 window.location.href = "/login";
                 return;
@@ -101,10 +83,7 @@ export default function RemoveAccountConfirm({
             </p>
 
             <div className="flex gap-3">
-                {/*
-                  * Cancel is written first and is the plainer of the two, so the
-                  * button reached by reflex is the one that changes nothing.
-                  */}
+                {/* Cancel comes first and is the plainer of the two. The order is deliberate. */}
                 <Button type="button" variant="outline" onClick={onCancel}>
                     Cancel
                 </Button>

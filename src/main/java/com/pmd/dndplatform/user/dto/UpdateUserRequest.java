@@ -4,10 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /*
- * What the DM can change on an existing account.
- *
- * Only the person name, on purpose. Username is the login handle and stays put.
- * Password changing is its own job with its own rules, and is a later story.
+ * The body of a request to change an existing account. Only the person name
+ * can be changed this way.
  */
 public record UpdateUserRequest(
 

@@ -1,22 +1,6 @@
 /*
- * Phase 2 Story 5: the form that corrects a person's name.
- *
- * WHY THE USERNAME IS SHOWN BUT CANNOT BE EDITED
- *
- * It has to be shown, or the form does not say whose name is being changed. It
- * cannot be edited because a username is the login handle: changing it would sign
- * that person out of a name they had memorised, and the server refuses anyway,
- * since UpdateUserRequest carries one field and it is not this one.
- *
- * It is drawn as plain text rather than as a disabled box. A greyed-out box
- * invites the question of how to switch it on. Text does not.
- *
- * WHY THERE IS NO PASSWORD FIELD
- *
- * Resetting a locked-out player's password is Phase 2 Story 7, which owns that
- * work together with the session handling that has to come with it: changing a
- * password must end the account's other sessions, and nothing does that yet.
- * Adding a password box here would make it look done.
+ * The form that changes an account's person name. The username is shown in
+ * the heading as plain text and has no box.
  */
 import { useState } from "react";
 import type { FormEvent } from "react";
@@ -28,11 +12,12 @@ import { ACCOUNT_LIMITS, updatePersonName } from "@/lib/accounts";
 import { isTimeout, TIMEOUT_MESSAGE } from "@/lib/http";
 import type { Account } from "@/lib/accounts";
 
-/*
- * account - the account being edited. Its person name fills the box to start
- *           with, because most edits are a correction to what is already there.
- * onSaved - called with the updated account once the server has stored it.
- * onCancel - called when the form is closed without saving.
+/**
+ * Draws the edit form with the current name already in the box.
+ *
+ * @param account (Account) the account being edited.
+ * @param onSaved (function) called with the updated account once the server has stored it.
+ * @param onCancel (function) called when the form is closed without saving.
  */
 export default function EditAccountForm({
     account,
@@ -47,13 +32,11 @@ export default function EditAccountForm({
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    /*
-     * event - the submit event, whose default page reload is stopped.
+    /**
+     * Checks the name, sends it and hands the result to the parent. A request
+     * that gets no answer is caught and shown.
      *
-     * Raises nothing. A request that gets no answer is caught and shown.
-     *
-     * A blank name is refused here as well as on the server, so the correction is
-     * immediate rather than a round trip that returns a bare 400.
+     * @param event (FormEvent) the submit event, whose default page reload is stopped.
      */
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
@@ -62,11 +45,7 @@ export default function EditAccountForm({
             setError("A name is required.");
             return;
         }
-        /*
-         * The same limit the add form applies, from the same place, because the
-         * server applies it to both and would answer a longer one with a bare
-         * 400 that this form could only describe vaguely.
-         */
+        // The limit is read from ACCOUNT_LIMITS, the same place the add form reads it.
         if (personName.trim().length > ACCOUNT_LIMITS.personNameMax) {
             setError(`Name must be ${ACCOUNT_LIMITS.personNameMax} characters or fewer.`);
             return;
@@ -78,8 +57,7 @@ export default function EditAccountForm({
         try {
             const result = await updatePersonName(account.id, personName.trim());
 
-            /* The session ended. See AddAccountForm for why this leaves rather
-             * than showing a message. */
+            // The session ended. A full browser navigation discards the form with the page.
             if (result.kind === "noSession") {
                 window.location.href = "/login";
                 return;

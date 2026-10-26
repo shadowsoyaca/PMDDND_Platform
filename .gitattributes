@@ -1,37 +1,27 @@
-# That tells Git to store everything with LF line endings in the repository while still 
-# checking out whatever is native on each machine. It travels with the repo, so it covers 
-# your Windows side, your WSL side, and the server all at once
+# Stores every text file with LF in the repository and checks out the native ending. Stays first.
 * text=auto
 
-# Allows for editing mvnw on Windows, running it on WSL, or moving the file by some other 
-# means other than a clean Git checkout. 
+# Keeps mvnw at LF.
 mvnw text eol=lf
 
-# forces the Windows script to CRLF
+# Keeps the Windows script at CRLF.
 *.cmd text eol=crlf
 
-# Ensures that the committed script keeps Linux line endings, even if the script is edited
-# on Windows. This is important for scripts that are run in a Linux environment, as CRLF line endings can cause issues.
+# Keeps the shell scripts and the service unit at LF.
 *.sh text eol=lf
 *.service text eol=lf
 
-# NOTE: Phase 2 Story 4.8 - GitHub Actions workflow files, for the same reason as
-# the two lines above. The "run:" blocks inside a workflow are pulled out and
-# executed as shell commands on a Linux runner, so a carriage return that came
-# from editing on Windows ends up inside the command and bash reports
-# "$'\r': command not found". "* text=auto" at the top already normalises this,
-# so the line is insurance rather than a fix, and it states the intent where
-# someone editing the workflow will see it.
+# Keeps workflow files at LF. Deliberately redundant with the text=auto line above.
 .github/workflows/*.yml text eol=lf
 
-# Ensures Caddyfile keeps Linux line endings:
+# Keeps the Caddyfile at LF.
 Caddyfile text eol=lf
 
-# Image assets: binary, no line-ending conversion
+# Image files. PNG is binary. SVG is text on purpose.
 *.png binary
 *.svg text eol=lf
 
-# Frontend assets: binary, no line-ending conversion
+# Font and icon files are binary, with no line ending conversion.
 *.woff2 binary
 *.woff binary
 *.ttf binary

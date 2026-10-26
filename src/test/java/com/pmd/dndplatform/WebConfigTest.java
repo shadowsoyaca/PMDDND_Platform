@@ -14,28 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /*
- * Phase 2 Story 5: checks that the React app's screens survive being typed into
- * the address bar.
- *
- * WHY THIS IS WORTH TESTING
- *
- * The React app draws its screens in the browser. There is only one real file,
- * index.html, so /accounts is a screen inside a program rather than a file on
- * disk. Spring answers 404 for it unless WebConfig forwards it to index.html.
- *
- * Forgetting that line has a distinctive symptom: clicking through to the screen
- * from inside the app works perfectly, and typing its address or pressing reload
- * gives a 404. Everything looks fine right up until someone bookmarks the page or
- * refreshes it. WebConfig warns about this in prose, and this file is the check
- * that makes the warning bite.
- *
- * WHY forwardedUrl RATHER THAN LOOKING FOR THE PAGE ITSELF
- *
- * MockMvc records a forward and does not carry it out. That is useful here: the
- * frontend is not built during a backend test run, so index.html is not on the
- * classpath and there would be nothing to find. What is being tested is that
- * Spring was told where to send the request, which is exactly what the recorded
- * forward shows.
+ * Checks that WebConfig forwards the React app's addresses to index.html when
+ * typed into the address bar. MockMvc records the forward without carrying it
+ * out, and forwardedUrl reads that record.
  */
 @SpringBootTest(properties = {
         "app.owner.username=" + SecurityConfigTest.TEST_USER,
@@ -59,17 +40,8 @@ class WebConfigTest {
     }
 
     /*
-     * A player typing the address also reaches the app, and that is correct
-     * rather than a hole.
-     *
-     * The address serves a screen. The screen then asks for the account data and
-     * is refused by the OWNER rule on /api/admin/, which UserAdminTest covers. So
-     * what a player gets here is a page that tells them they cannot see it, and
-     * no account data leaves the server.
-     *
-     * This test exists to stop someone "fixing" that by putting an OWNER rule on
-     * the address as well. Doing so would put the same rule in two places, which
-     * is how the two end up disagreeing.
+     * A player typing the address reaches the app too. There is no OWNER rule
+     * on this address; the rule is on /api/admin/, which UserAdminTest covers.
      */
     @Test
     @WithMockUser(username = "someplayer", roles = "PLAYER")

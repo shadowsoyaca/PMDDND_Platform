@@ -1,13 +1,10 @@
+# Main application settings: the database connection, JPA, Flyway, the server
+# bind and session cookie, and the owner account seed.
 spring:
   application:
     name: dndplatform
 
-  # ---------------------------------------------------------------------------
-  # Phase 2 Story 3: the database connection.
-  # The URL and username have sensible defaults (the local dev database, and the
-  # same names used on the server). The PASSWORD has no default on purpose: if
-  # DB_PASSWORD is not set, the app refuses to start rather than guessing.
-  # ---------------------------------------------------------------------------
+  # DB_PASSWORD has no default. The app refuses to start without it.
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/pmd_dnd}
     username: ${DB_USERNAME:pmd_app}
@@ -15,63 +12,35 @@ spring:
 
   jpa:
     hibernate:
-      # validate = "check that the Java classes match the real tables, and stop
-      # if they do not". Hibernate is NOT allowed to create or alter anything.
-      # Flyway owns the schema; Hibernate only polices it.
+      # Must stay validate. Hibernate checks the entities against the tables and never alters them.
       ddl-auto: validate
-    # Keeps database work inside the service layer instead of leaking into page
-    # rendering. Off is the safer default and avoids surprise queries later.
+    # Closes the persistence session when the service method ends.
     open-in-view: false
 
   flyway:
-    # Runs the SQL files in db/migration at startup, in order, once each, and
-    # records what it ran in a table it manages itself.
+    # Runs the SQL files in db/migration at startup, in order, once each.
     enabled: true
     locations: classpath:db/migration
 
 server:
-  # Trust Caddy's X-Forwarded-* headers so the app sees the real client
-  # IP and the https scheme (required for Secure cookies below).
+  # Reads the client address and scheme from the reverse proxy's X-Forwarded-* headers.
   forward-headers-strategy: framework
-  # Loopback bind: Tomcat listens only on 127.0.0.1, so the app is
-  # physically unreachable except through the reverse proxy.
+  # Binds Tomcat to loopback only. Traffic arrives through the reverse proxy.
   address: 127.0.0.1
   servlet:
     session:
-      # NOTE: Phase 2 Story 5 - the idle timeout, set here rather than inherited.
-      #
-      # Spring's default is also 30 minutes, so this changes nothing today. It is
-      # written down because an inherited default is not a decision: nobody can
-      # tell from the code whether 30 minutes was chosen or simply never
-      # considered, and a later Spring Boot version could change it underneath us
-      # with nothing here to notice.
-      #
-      # This is idle time, not total time. The clock restarts on every request, so
-      # somebody using the platform is never signed out mid-use. It ends sessions
-      # left open on a machine and walked away from, which is the same risk the
-      # sign out button exists for.
-      #
-      # WORTH REVISITING when real play starts. A group reading through a scene
-      # without touching the screen for half an hour would be signed out, and at
-      # that point the right value is a measured one rather than this.
+      # Idle timeout. The clock restarts on every request.
       timeout: 30m
       cookie:
-        # Stops browser JavaScript from reading the login cookie, so a script
-        # slipped onto a page cannot steal the session.
+        # Hides the session cookie from browser JavaScript.
         http-only: true
-        # Only sends the cookie when the request starts from our own site,
-        # which blocks a common cross-site request trick.
+        # Sends the cookie only on requests that start from this site.
         same-site: lax
-        # The Secure flag is left unset on purpose. Tomcat adds it by itself
-        # when the request is https. In production the app knows the traffic is
-        # https from the forwarded headers above, so the cookie comes out
-        # Secure. Local http testing skips the flag and still works.
+        # There is no secure: line here. Tomcat sets the Secure flag itself
+        # when the request is https.
 
-# Phase 2 Story 3: these three are now the SEED for the owner account, not the account
-# itself. On startup, if no user row has this username, one is created from
-# these values. If the row already exists, these are ignored completely.
-# Changing the hash here does NOT change your stored password.
-# To reset yourself: delete your row from the users table and restart.
+# The seed for the owner account. OwnerBootstrap creates the row from these
+# values when it is missing and ignores them when it exists.
 app:
   owner:
     username: ${APP_OWNER_USERNAME}
